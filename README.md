@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ewerttonbravo/wallet-service/actions/workflows/ci.yml/badge.svg)](https://github.com/ewerttonbravo/wallet-service/actions/workflows/ci.yml)
 
-A wallet microservice that manages users' money: wallet creation, deposits, withdrawals, transfers between users, and current and historical balance retrieval, with full traceability of every operation for auditing.
+A microservice that keeps users' wallets: it opens wallets, takes deposits and withdrawals, moves funds from one user to another, and reports current and past balances. Each operation is recorded in an append-only ledger, so any balance can be audited and rebuilt.
 
 Built with Java 25 and Spring Boot, following test-driven development and a clean separation between the domain and the technology around it.
 

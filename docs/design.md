@@ -59,6 +59,7 @@ Errors other than `401` are Problem Details (`application/problem+json`). Timest
 | D17 | Business errors as a sealed hierarchy mapped to Problem Details | An exhaustive `switch` maps each error to a status, so adding an error without mapping it does not compile (NFR7). |
 | D18 | Configuration through Spring's standard environment variables, no defaults | `SPRING_DATASOURCE_*` and the JWT issuer must be provided; the service fails fast without them and no credential is committed. |
 | D19 | Integration tests against a real PostgreSQL in Testcontainers, one shared context | Behavior that matters (constraints, concurrency, `timestamptz` precision) is exercised on the real database. Each test uses a fresh owner, which isolates tests without cleanup. |
+| D20 | Adapters must not depend on each other, the wiring package included | `adapter.config` wires only through application ports; adapter classes are package-private, so it could not reach them anyway. A bean that needs a concrete adapter is declared in that adapter's own package, as `SecurityConfiguration` is. Exempting the wiring package would weaken the rule for a case that does not exist. |
 
 ## Requirements traceability
 
