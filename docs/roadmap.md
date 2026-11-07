@@ -27,4 +27,4 @@ The service is built in increments, ordered from the most to the least value del
 - [design.md](design.md) updated: new decisions and the requirements traceability matrix.
 - [trade-offs.md](trade-offs.md) updated: new compromises and time spent.
 - README updated when installing, testing or running changes.
-- Merged into `main` with `--no-ff`, keeping the test-first commit trail grouped by increment.
+- Reviewed in a pull request and merged into `main` with a merge commit, never squashed, keeping the test-first commit trail grouped by increment.
