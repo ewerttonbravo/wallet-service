@@ -1,5 +1,6 @@
 package com.ebravo.wallet;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -11,21 +12,18 @@ import com.tngtech.archunit.lang.ArchRule;
 class ArchitectureTest {
 
     @ArchTest
-    static final ArchRule domainIsFrameworkFree = noClasses()
+    static final ArchRule domainDependsOnTheJdkOnly = classes()
             .that().resideInAPackage("..domain..")
-            .should().dependOnClassesThat().resideInAnyPackage(
-                    "org.springframework..", "jakarta..", "org.hibernate..", "com.fasterxml..", "tools.jackson..")
-            .allowEmptyShould(true);
+            .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "..domain..");
+
+    // java.sql is part of the JDK, so the whitelist above lets it through.
+    @ArchTest
+    static final ArchRule domainDoesNotUseJdbc = noClasses()
+            .that().resideInAPackage("..domain..")
+            .should().dependOnClassesThat().resideInAPackage("java.sql..");
 
     @ArchTest
-    static final ArchRule domainDependsOnNothingOutward = noClasses()
-            .that().resideInAPackage("..domain..")
-            .should().dependOnClassesThat().resideInAnyPackage("..application..", "..adapter..")
-            .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule applicationDoesNotDependOnAdapters = noClasses()
+    static final ArchRule applicationDependsOnTheDomainAndTheJdkOnly = classes()
             .that().resideInAPackage("..application..")
-            .should().dependOnClassesThat().resideInAPackage("..adapter..")
-            .allowEmptyShould(true);
+            .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "..domain..", "..application..");
 }
