@@ -1,6 +1,6 @@
 # Requirements
 
-This document defines what the Wallet Service must do (functional requirements), the qualities it must have (non-functional requirements), and the decisions and assumptions that close the gaps in the original brief.
+This document defines what the Wallet Service must do (functional requirements), the qualities it must have (non-functional requirements), and the assumptions that close the gaps in the original brief.
 
 ## Functional requirements
 
@@ -30,18 +30,7 @@ This document defines what the Wallet Service must do (functional requirements),
 | NFR10 | Ease of running | Docker is the only prerequisite. One command starts the service, its database and a local token issuer. Tests provision their own database. |
 | NFR11 | Testability | 100% line and branch coverage enforced by the build. The domain is independent of frameworks and tested with plain unit tests. |
 
-## Decisions
-
-| ID | Decision | Rationale |
-|---|---|---|
-| D1 | One wallet per user, single currency (BRL) | Multi-currency adds conversion and per-currency balances without serving any stated requirement. |
-| D2 | Double-entry ledger with a system external account | Deposits debit the external account and withdrawals credit it, so every transaction balances to zero. Money can't appear or disappear without a record, which is the strongest audit guarantee. |
-| D3 | Pessimistic locking | Under contention on the same wallet it is simpler and more predictable than optimistic locking with retries. |
-| D4 | Mandatory idempotency keys | Clients of a mission-critical service retry on timeouts; without idempotency a retry can move money twice. |
-| D5 | PostgreSQL, run through Docker | Row-level locking and concurrent writers are required by D3 and NFR4. Embedded databases such as SQLite lock the whole database on writes and can't be shared by multiple instances. |
-| D6 | Paginated transaction listing | Low cost, and it makes the audit trail visible through the API. |
-| D7 | JWT validated in the service, TLS at the infrastructure | Stateless token validation scales with the service. Token issuance belongs to an identity provider; a mock issuer covers local runs. In-process TLS would require self-signed certificates and hurt the out-of-the-box experience. |
-| D8 | UTC storage, ISO-8601 with offset at the API | Ledger timestamps must be unambiguous; time zones are a presentation concern, and this API has no presentation layer. |
+The design decisions that shape these requirements are recorded in [design.md](design.md#decisions).
 
 ## Assumptions
 
