@@ -2,6 +2,7 @@ package com.ebravo.wallet;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
@@ -26,4 +27,9 @@ class ArchitectureTest {
     static final ArchRule applicationDependsOnTheDomainAndTheJdkOnly = classes()
             .that().resideInAPackage("..application..")
             .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "..domain..", "..application..");
+
+    @ArchTest
+    static final ArchRule adaptersAreIndependentOfEachOther = slices()
+            .matching("com.ebravo.wallet.adapter.(*)..")
+            .should().notDependOnEachOther();
 }
