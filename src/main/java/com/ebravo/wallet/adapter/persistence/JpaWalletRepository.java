@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 @Component
 class JpaWalletRepository implements WalletRepository {
 
-    private final WalletJpaRepository jpa;
+    private final WalletEntityRepository jpa;
 
-    JpaWalletRepository(WalletJpaRepository jpa) {
+    JpaWalletRepository(WalletEntityRepository jpa) {
         this.jpa = jpa;
     }
 

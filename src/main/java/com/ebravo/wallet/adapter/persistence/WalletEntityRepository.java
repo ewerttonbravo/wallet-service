@@ -10,7 +10,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Exposes only what the adapter needs: wallets are never updated through save() nor deleted. */
-interface WalletJpaRepository extends Repository<WalletEntity, UUID> {
+interface WalletEntityRepository extends Repository<WalletEntity, UUID> {
 
     Optional<WalletEntity> findByOwnerId(String ownerId);
 
