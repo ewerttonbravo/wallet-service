@@ -34,11 +34,21 @@ The design decisions that shape these requirements are recorded in [design.md](d
 
 ## Assumptions
 
-- Users are created and authenticated elsewhere; this service trusts the JWT subject as the user id.
-- Deposits and withdrawals represent money already settled with an external system (payment provider, bank). Integration with such systems is out of scope.
-- No minimum or maximum amount per operation and no daily limits.
-- Wallets are never closed or deleted.
-- Idempotency keys are kept for as long as the transaction they produced.
+Where the brief leaves a behavior undefined, these assumptions close the gap. The requirements above are built on them.
+
+| ID | Assumption | Rationale |
+|---|---|---|
+| A1 | Users are created and authenticated elsewhere; the JWT subject is the user id. | Identity is a separate concern with its own lifecycle and security needs. The wallet only needs to know who is calling. |
+| A2 | A user owns at most one wallet. | It serves every required operation. Multiple wallets would force clients to pick one on every call, with no requirement asking for it. |
+| A3 | Single currency: BRL. | No requirement mentions currencies. Multi-currency brings conversion rates and per-currency balances for no stated benefit. |
+| A4 | Amounts are positive with at most 2 decimal places; anything finer is rejected, never rounded. | Rounding silently changes the amount the client asked to move. Rejecting makes the error visible to the caller. |
+| A5 | Withdrawals and transfers cannot overdraw a wallet. | Credit is a product of its own, with limits and interest. Without such a requirement, a wallet holds only money the user has. |
+| A6 | The balance at instant `T` is the balance after the last ledger entry recorded at or before `T`. `T` in the future or before the wallet's creation is rejected. | The ledger gives an exact answer for any past instant. The future has no balance yet, and answering zero before the wallet existed would hide a client error. |
+| A7 | Transfers to the same wallet are rejected. | They move no money and only add noise to the audit trail; they almost always indicate a client bug. |
+| A8 | Deposits and withdrawals represent money already settled with an external system (payment provider, bank). | Integrating with payment rails is a separate concern. The wallet records the outcome. |
+| A9 | No minimum or maximum amount per operation and no daily limits. | Limits are business policy. Inventing values would add rules nobody asked for. |
+| A10 | Wallets are never closed or deleted. | Closure raises questions (remaining balance, retention) the brief does not answer, and the ledger must remain available for auditing anyway. |
+| A11 | Idempotency keys are kept for as long as the transaction they produced. | A retry may arrive at any time; expiring keys would reopen the door to moving money twice. |
 
 ## Out of scope
 
