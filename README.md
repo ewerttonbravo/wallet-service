@@ -12,13 +12,34 @@ Work in progress. Installation, usage, and design documentation will be added as
 
 ## Build and test
 
-Requires JDK 25. The Maven Wrapper downloads Maven on first use.
+Requires JDK 25 and a running Docker daemon: integration tests start their own PostgreSQL with Testcontainers. The Maven Wrapper downloads Maven on first use.
 
 ```sh
 ./mvnw verify
 ```
 
-The build fails if line or branch coverage drops below 100%, or if the domain depends on any framework.
+The build fails if line or branch coverage drops below 100%, or if the domain or application layers depend on any framework.
+
+With Colima instead of Docker Desktop, point Testcontainers to its socket first:
+
+```sh
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
+```
+
+## Run
+
+The service needs a PostgreSQL database and a JWT issuer, configured through environment variables. It refuses to start without them.
+
+```sh
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
+export SPRING_DATASOURCE_USERNAME=wallet
+export SPRING_DATASOURCE_PASSWORD=wallet
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=https://your-issuer.example
+./mvnw spring-boot:run
+```
+
+Flyway creates the schema on startup. A one-command setup with the database and a local token issuer is planned (see the [roadmap](docs/roadmap.md)).
 
 ## Documentation
 
