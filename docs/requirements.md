@@ -1,0 +1,60 @@
+# Requirements
+
+This document defines what the Wallet Service must do (functional requirements), the qualities it must have (non-functional requirements), and the decisions and assumptions that close the gaps in the original brief.
+
+## Functional requirements
+
+| ID | Requirement | Rules |
+|---|---|---|
+| FR1 | Create wallet | A user owns at most one wallet. The owner is the authenticated user; users are managed outside this service. A new wallet starts with a zero balance. Creating a second wallet for the same user is rejected as a conflict. |
+| FR2 | Retrieve balance | Returns the current balance of the wallet. Never exposes an intermediate state of an in-flight operation. |
+| FR3 | Retrieve historical balance | The balance at instant `T` is the balance after the last ledger entry recorded at or before `T`. `T` before the wallet's creation or in the future is rejected. |
+| FR4 | Deposit funds | Amount must be positive with at most 2 decimal places. Amounts with more decimal places are rejected, never rounded. |
+| FR5 | Withdraw funds | Same amount rules as FR4. Rejected when the balance is insufficient; overdraft is not allowed. |
+| FR6 | Transfer funds | Moves money from the authenticated user's wallet to another wallet, atomically: both sides are applied or neither is. Same amount rules as FR4. Transfers to the same wallet are rejected. Rejected when the source balance is insufficient. |
+| FR7 | List transactions | Returns the wallet's ledger entries, newest first, paginated. Exposes the audit trail to the owner. |
+
+## Non-functional requirements
+
+| ID | Requirement | Approach |
+|---|---|---|
+| NFR1 | Full traceability | Double-entry, append-only ledger. Every operation is a transaction whose entries sum to zero. Entries are never updated or deleted. Each entry records its transaction, account, signed amount, resulting balance, timestamp and correlation id. Any balance can be rebuilt and reconciled from the ledger. |
+| NFR2 | Correctness under concurrency | ACID transactions. Pessimistic row locks (`SELECT … FOR UPDATE`) on the affected wallets. Transfers lock wallets in a deterministic order to prevent deadlocks. A database `CHECK` constraint keeps user balances non-negative as a last line of defense. |
+| NFR3 | Idempotency | Deposit, withdrawal and transfer require an `Idempotency-Key` header. Replaying a key returns the original result without posting again. Reusing a key with a different payload is rejected. |
+| NFR4 | Availability | Stateless service, horizontally scalable. Liveness and readiness probes. Graceful shutdown that drains in-flight requests. |
+| NFR5 | Observability | Structured logs carrying a correlation id, application metrics, health endpoints. |
+| NFR6 | Monetary precision | `BigDecimal` with scale 2. Single currency: BRL. |
+| NFR7 | API contract | REST over HTTP with JSON, documented with OpenAPI. Errors follow Problem Details (RFC 9457). Timestamps are ISO-8601 with offset; storage is UTC. |
+| NFR8 | Persistence | PostgreSQL with versioned schema migrations. |
+| NFR9 | Security | Every endpoint requires a JWT, validated by the service as an OAuth2 resource server. The token subject identifies the user; users can only read and move money from their own wallet. TLS is terminated by the infrastructure (gateway or ingress), not by the service. |
+| NFR10 | Ease of running | Docker is the only prerequisite. One command starts the service, its database and a local token issuer. Tests provision their own database. |
+| NFR11 | Testability | 100% line and branch coverage enforced by the build. The domain is independent of frameworks and tested with plain unit tests. |
+
+## Decisions
+
+| ID | Decision | Rationale |
+|---|---|---|
+| D1 | One wallet per user, single currency (BRL) | Multi-currency adds conversion and per-currency balances without serving any stated requirement. |
+| D2 | Double-entry ledger with a system external account | Deposits debit the external account and withdrawals credit it, so every transaction balances to zero. Money can't appear or disappear without a record, which is the strongest audit guarantee. |
+| D3 | Pessimistic locking | Under contention on the same wallet it is simpler and more predictable than optimistic locking with retries. |
+| D4 | Mandatory idempotency keys | Clients of a mission-critical service retry on timeouts; without idempotency a retry can move money twice. |
+| D5 | PostgreSQL, run through Docker | Row-level locking and concurrent writers are required by D3 and NFR4. Embedded databases such as SQLite lock the whole database on writes and can't be shared by multiple instances. |
+| D6 | Paginated transaction listing | Low cost, and it makes the audit trail visible through the API. |
+| D7 | JWT validated in the service, TLS at the infrastructure | Stateless token validation scales with the service. Token issuance belongs to an identity provider; a mock issuer covers local runs. In-process TLS would require self-signed certificates and hurt the out-of-the-box experience. |
+| D8 | UTC storage, ISO-8601 with offset at the API | Ledger timestamps must be unambiguous; time zones are a presentation concern, and this API has no presentation layer. |
+
+## Assumptions
+
+- Users are created and authenticated elsewhere; this service trusts the JWT subject as the user id.
+- Deposits and withdrawals represent money already settled with an external system (payment provider, bank). Integration with such systems is out of scope.
+- No minimum or maximum amount per operation and no daily limits.
+- Wallets are never closed or deleted.
+- Idempotency keys are kept for as long as the transaction they produced.
+
+## Out of scope
+
+- User management and token issuance.
+- Multi-currency and currency conversion.
+- Fees, limits, fraud checks.
+- Wallet closure.
+- High availability of the database itself (replication, failover, multi-region). Documented as a trade-off.
