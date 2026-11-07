@@ -29,29 +29,33 @@ export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 
 ## Run
 
-The service needs a PostgreSQL database and a JWT issuer, configured through environment variables. It refuses to start without them.
-
-Start a local database:
+Requires Docker with Compose, plus `curl` and `jq` for the examples. Start PostgreSQL and the local token issuer:
 
 ```sh
-docker run -d --name wallet-db -p 5432:5432 \
-  -e POSTGRES_DB=wallet -e POSTGRES_USER=wallet -e POSTGRES_PASSWORD=wallet \
-  postgres:18-alpine
+docker compose up -d --wait
 ```
 
-Then start the service:
+The service reads its database and issuer from environment variables and refuses to start without them. Flyway creates the schema on startup. Check that the service is up with `curl localhost:8080/actuator/health`.
 
 ```sh
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
 export SPRING_DATASOURCE_USERNAME=wallet
 export SPRING_DATASOURCE_PASSWORD=wallet
-export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=https://your-issuer.example
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000/local
 ./mvnw spring-boot:run
 ```
 
-Flyway creates the schema on startup. Check that the service is up with `curl localhost:8080/actuator/health`.
+In another terminal, get a token for a user (`client_id` becomes the token subject, `scope` its audience) and call the API:
 
-The issuer above is a placeholder: the service starts, health endpoints answer, and every other endpoint returns `401`. To call the API, set the issuer to a real OpenID Connect provider whose tokens you can obtain. A one-command setup with the database and a local token issuer is planned (see the [roadmap](docs/roadmap.md)).
+```sh
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=alice -d client_secret=any \
+  -d scope=wallet-service http://localhost:9000/local/token | jq -r .access_token)
+
+curl -i -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
+```
+
+Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.
 
 ## Documentation
 
