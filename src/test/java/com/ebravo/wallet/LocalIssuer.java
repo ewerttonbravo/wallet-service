@@ -42,13 +42,13 @@ public final class LocalIssuer extends GenericContainer<LocalIssuer> {
         return URI.create("http://%s:%d/%s".formatted(getHost(), getMappedPort(PORT), issuerId));
     }
 
-    // With the client credentials grant the issuer copies client_id into sub.
+    // With the client credentials grant the issuer copies client_id into sub and the scope into aud.
     private String token(String issuerId, OwnerId owner, String audience) {
         var form = new LinkedMultiValueMap<String, String>();
         form.add("grant_type", "client_credentials");
         form.add("client_id", owner.value());
         form.add("client_secret", "unused");
-        form.add("audience", audience);
+        form.add("scope", audience);
         return RestClient.create().post()
                 .uri(issuerUri(issuerId) + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
