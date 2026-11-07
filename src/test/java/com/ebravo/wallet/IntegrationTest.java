@@ -7,17 +7,19 @@ import java.lang.annotation.Target;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ContextConfiguration;
 
 /**
- * Full application against a real PostgreSQL. Every integration test uses this exact setup,
- * so they all share one cached context and one container.
+ * Full application against a real PostgreSQL and the local token issuer. Every integration test
+ * uses this exact setup, so they all share one cached context and one set of containers.
  *
- * <p>Tokens are built by Spring Security's test support and never reach the issuer, which is why
- * it points to a reserved, unresolvable domain.
+ * <p>API tests build tokens with Spring Security's test support, which skips decoding;
+ * {@code JwtAuthenticationTest} covers validation of issued tokens.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest(properties = "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://issuer.invalid")
+@SpringBootTest
+@ContextConfiguration(initializers = LocalIssuerInitializer.class)
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 public @interface IntegrationTest {
