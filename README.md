@@ -31,6 +31,16 @@ export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 
 The service needs a PostgreSQL database and a JWT issuer, configured through environment variables. It refuses to start without them.
 
+Start a local database:
+
+```sh
+docker run -d --name wallet-db -p 5432:5432 \
+  -e POSTGRES_DB=wallet -e POSTGRES_USER=wallet -e POSTGRES_PASSWORD=wallet \
+  postgres:18-alpine
+```
+
+Then start the service:
+
 ```sh
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
 export SPRING_DATASOURCE_USERNAME=wallet
@@ -39,7 +49,9 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=https://your-issuer.e
 ./mvnw spring-boot:run
 ```
 
-Flyway creates the schema on startup. A one-command setup with the database and a local token issuer is planned (see the [roadmap](docs/roadmap.md)).
+Flyway creates the schema on startup. Check that the service is up with `curl localhost:8080/actuator/health`.
+
+The issuer above is a placeholder: the service starts, health endpoints answer, and every other endpoint returns `401`. To call the API, set the issuer to a real OpenID Connect provider whose tokens you can obtain. A one-command setup with the database and a local token issuer is planned (see the [roadmap](docs/roadmap.md)).
 
 ## Documentation
 
