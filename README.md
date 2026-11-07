@@ -24,4 +24,5 @@ The build fails if line or branch coverage drops below 100%, or if the domain de
 
 - [Requirements](docs/requirements.md): functional and non-functional requirements, assumptions, scope.
 - [Design](docs/design.md): architecture, decisions, and how each requirement is met.
+- [Roadmap](docs/roadmap.md): increments, their order and the definition of done.
 - [Trade-offs](docs/trade-offs.md): compromises, their production path, and time spent.

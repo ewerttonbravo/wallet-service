@@ -17,3 +17,4 @@ Compromises made consciously, why, and what a production rollout would add. This
 | Increment | Scope | Hours |
 |---|---|---|
 | 0–1 | Requirements analysis; project bootstrap: build, quality gates, health probes, CI | 1.0 |
+| Planning | Roadmap: increments ordered by user value, branching and definition of done | 0.3 |
