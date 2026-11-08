@@ -12,7 +12,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Exposes only what the adapter needs: wallets are never saved through save() nor deleted, and only their balance changes. */
+/** Exposes only what the adapter needs: wallets are never written through save() nor deleted; only their balance changes. */
 interface WalletEntityRepository extends Repository<WalletEntity, UUID> {
 
     Optional<WalletEntity> findByOwnerId(String ownerId);
