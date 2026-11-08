@@ -18,7 +18,7 @@ Requires JDK 25 and a running Docker daemon: integration tests start their own P
 ./mvnw verify
 ```
 
-The build fails if line or branch coverage drops below 100%, if a mutant of the domain or application code survives the tests (PIT, report in `target/pit-reports`), or if the domain or application layers depend on any framework.
+The build fails if line or branch coverage of the domain or application code drops below 100%, if a mutant of the domain or application code survives the tests (PIT, report in `target/pit-reports`), or if the domain or application layers depend on any framework.
 
 With Colima instead of Docker Desktop, point Testcontainers to its socket first:
 
