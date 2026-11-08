@@ -19,4 +19,15 @@ public final class InMemoryWalletRepository implements WalletRepository {
     public Optional<Wallet> findByOwner(OwnerId owner) {
         return Optional.ofNullable(walletsByOwner.get(owner));
     }
+
+    @Override
+    public Optional<Wallet> lockByOwner(OwnerId owner) {
+        return findByOwner(owner);
+    }
+
+    @Override
+    public void updateBalance(Wallet wallet) {
+        walletsByOwner.computeIfPresent(wallet.owner(), (_, stored) ->
+                new Wallet(stored.id(), stored.owner(), wallet.balance(), stored.createdAt()));
+    }
 }

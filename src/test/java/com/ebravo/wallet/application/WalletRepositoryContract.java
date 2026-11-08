@@ -15,6 +15,8 @@ public interface WalletRepositoryContract {
 
     WalletRepository repository();
 
+    Transactions transactions();
+
     @Test
     default void storesTheWalletOfAnOwnerWithoutOne() {
         var wallet = Wallet.open(anOwner(), NOW);
@@ -45,5 +47,32 @@ public interface WalletRepositoryContract {
     @Test
     default void findsNothingForAnOwnerWithoutWallet() {
         assertThat(repository().findByOwner(anOwner())).isEmpty();
+    }
+
+    @Test
+    default void locksTheWalletOfTheOwner() {
+        var wallet = Wallet.open(anOwner(), NOW);
+        repository().add(wallet);
+
+        assertThat(transactions().inTransaction(() -> repository().lockByOwner(wallet.owner()))).contains(wallet);
+    }
+
+    @Test
+    default void locksNothingForAnOwnerWithoutWallet() {
+        assertThat(transactions().inTransaction(() -> repository().lockByOwner(anOwner()))).isEmpty();
+    }
+
+    @Test
+    default void storesTheNewBalance() {
+        var wallet = Wallet.open(anOwner(), NOW);
+        repository().add(wallet);
+        var updated = new Wallet(wallet.id(), wallet.owner(), new Money(new BigDecimal("12.34")), wallet.createdAt());
+
+        transactions().inTransaction(() -> {
+            repository().updateBalance(updated);
+            return null;
+        });
+
+        assertThat(repository().findByOwner(wallet.owner())).contains(updated);
     }
 }

@@ -8,4 +8,9 @@ class InMemoryWalletRepositoryTest implements WalletRepositoryContract {
     public WalletRepository repository() {
         return repository;
     }
+
+    @Override
+    public Transactions transactions() {
+        return new DirectTransactions();
+    }
 }
