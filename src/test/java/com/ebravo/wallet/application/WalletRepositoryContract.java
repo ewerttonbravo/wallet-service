@@ -3,6 +3,7 @@ package com.ebravo.wallet.application;
 import static com.ebravo.wallet.Fixtures.NOW;
 import static com.ebravo.wallet.Fixtures.anOwner;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.Wallet;
@@ -74,5 +75,19 @@ public interface WalletRepositoryContract {
         });
 
         assertThat(repository().findByOwner(wallet.owner())).contains(updated);
+    }
+
+    // A known wallet's balance is stored (above); a write that reaches no wallet must not pass silently,
+    // or its ledger entry would be committed with a balance nobody holds.
+    @Test
+    default void refusesToStoreTheBalanceOfAnUnknownWallet() {
+        var stranger = Wallet.open(anOwner(), NOW);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> transactions().inTransaction(() -> {
+                    repository().updateBalance(stranger);
+                    return null;
+                }))
+                .withMessage("No wallet %s to update".formatted(stranger.id().value()));
     }
 }
