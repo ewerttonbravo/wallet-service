@@ -55,6 +55,22 @@ class LockTimeoutApiTest {
                 .bodyJson().extractingPath("$.balance").isEqualTo("10.00");
     }
 
+    // Same locked wallet as above, where a valid deposit waits and gets 503: this one never waits.
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void refusesAnInvalidAmountWithoutWaitingForTheLock() throws SQLException {
+        var owner = anOwner();
+        assertThat(mvc.post().uri("/wallets").with(tokenOf(owner))).hasStatus(HttpStatus.CREATED);
+
+        try (var holder = dataSource.getConnection()) {
+            holder.setAutoCommit(false);
+            lockWalletOf(owner, holder);
+
+            assertThat(deposit(owner, "0.00")).hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+            holder.rollback();
+        }
+    }
+
     private static void lockWalletOf(OwnerId owner, Connection connection) throws SQLException {
         try (var statement = connection.prepareStatement("select id from wallet where owner_id = ? for update")) {
             statement.setString(1, owner.value());
@@ -63,8 +79,12 @@ class LockTimeoutApiTest {
     }
 
     private MvcTestResult deposit(OwnerId owner) {
+        return deposit(owner, "10.00");
+    }
+
+    private MvcTestResult deposit(OwnerId owner, String amount) {
         return mvc.post().uri("/wallets/me/deposits").with(tokenOf(owner))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"amount\": \"10.00\"}").exchange();
+                .contentType(MediaType.APPLICATION_JSON).content("{\"amount\": \"" + amount + "\"}").exchange();
     }
 
     private static RequestPostProcessor tokenOf(OwnerId owner) {

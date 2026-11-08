@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.InsufficientFundsException;
+import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.TransactionNotFoundException;
@@ -111,6 +112,19 @@ class WalletServiceTest {
         service.withdraw(owner, money("0.50"), CORRELATION);
 
         assertThat(transactions.count).isEqualTo(2);
+    }
+
+    // Valid postings open one transaction each (above); a hopeless one must not even take the lock.
+    @Test
+    void refusesANonPositiveAmountBeforeTouchingTheWallet() {
+        var owner = anOwner();
+        service.open(owner);
+
+        assertThatExceptionOfType(InvalidAmountException.class)
+                .isThrownBy(() -> service.deposit(owner, Money.ZERO, CORRELATION));
+        assertThatExceptionOfType(InvalidAmountException.class)
+                .isThrownBy(() -> service.withdraw(owner, money("-0.01"), CORRELATION));
+        assertThat(transactions.count).isZero();
     }
 
     // The same owner can deposit once the wallet exists (above), so only the missing wallet explains it.
