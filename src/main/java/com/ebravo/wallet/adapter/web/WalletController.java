@@ -62,6 +62,14 @@ class WalletController {
         return posted(wallets.withdraw(ownerOf(token), request.toMoney(), correlationId));
     }
 
+    @PostMapping("/me/transfers")
+    ResponseEntity<TransactionResponse> transfer(
+            @AuthenticationPrincipal Jwt token,
+            @RequestAttribute(CorrelationIdFilter.ATTRIBUTE) CorrelationId correlationId,
+            @RequestBody TransferRequest request) {
+        return posted(wallets.transfer(ownerOf(token), request.recipient(), request.toMoney(), correlationId));
+    }
+
     @GetMapping("/me/transactions/{id}")
     TransactionResponse transaction(@AuthenticationPrincipal Jwt token, @PathVariable UUID id) {
         return TransactionResponse.of(wallets.transaction(ownerOf(token), new TransactionId(id)));
