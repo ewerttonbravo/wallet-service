@@ -51,6 +51,8 @@ Where the brief leaves a behavior undefined, these assumptions close the gap. Th
 | A11 | Idempotency keys are kept for as long as the transaction they produced. | A retry may arrive at any time; expiring keys would reopen the door to moving money twice. |
 | A12 | Amounts and balances are bounded by what the ledger stores: at most 99,999,999,999,999,999.99 in magnitude. A larger amount, or a deposit that would take the balance past it, is rejected. | The bound is technical, not a business limit (A9 still holds). Rejecting it is a clear client error instead of a database failure. |
 | A13 | A caller may send its own correlation id in `X-Correlation-Id` (1 to 64 letters, digits, `.`, `_`, `:` or `-`); without one, the service generates a UUID. | Gateways and upstream services already trace requests with their own ids; reusing them ties a ledger entry to the whole request path. The format keeps untrusted input out of headers and the audit trail. |
+| A14 | The recipient of a transfer is named by its wallet id, which its owner shares outside the service, like an account number. | The wallet id is opaque and local to this service. The identity provider's subject may be guessable or personal data, and would tie the API to that provider. Directories of aliases (phone, e-mail) belong to user management, which is out of scope. |
+| A15 | A transfer to a wallet that does not exist is a rule violation (`422`), not a missing resource. | The resource called, the caller's transfers, exists; the request names something invalid. `404` keeps one meaning: the caller has no wallet. |
 
 ## Out of scope
 
