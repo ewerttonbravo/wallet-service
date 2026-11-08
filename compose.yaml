@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: wallet
       POSTGRES_PASSWORD: wallet # local-only throwaway credential
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432" # loopback only: the database is reachable from this machine alone
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
       interval: 2s
@@ -17,7 +17,7 @@ services:
   issuer:
     image: ghcr.io/navikt/mock-oauth2-server:6.1.1
     ports:
-      - "9000:8080" # 8080 is taken by the service itself
+      - "127.0.0.1:9000:8080" # loopback only, since it issues tokens to anyone; 8080 is taken by the service
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/local/.well-known/openid-configuration"]
       interval: 2s
