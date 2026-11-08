@@ -23,7 +23,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 class CorrelationIdFilter extends OncePerRequestFilter {
 
     static final String HEADER = "X-Correlation-Id";
-    static final String ATTRIBUTE = CorrelationId.class.getName();
+    static final String ATTRIBUTE = "com.ebravo.wallet.correlationId";
 
     // Fixed text: the rejected value is never echoed back.
     private static final String MALFORMED = """
