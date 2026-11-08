@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.ebravo.wallet.domain.BalanceLimitExceededException;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
+import com.ebravo.wallet.domain.TransactionNotFoundException;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
 import com.ebravo.wallet.domain.WalletException;
 import com.ebravo.wallet.domain.WalletNotFoundException;
@@ -23,6 +24,7 @@ class WalletProblemHandlerTest {
                 Arguments.of(new BalanceLimitExceededException(), 422),
                 Arguments.of(new InsufficientFundsException(), 422),
                 Arguments.of(new InvalidAmountException("Amount must be positive"), 422),
+                Arguments.of(new TransactionNotFoundException(), 404),
                 Arguments.of(new WalletAlreadyExistsException(), 409),
                 Arguments.of(new WalletNotFoundException(), 404));
     }
