@@ -25,7 +25,7 @@ The service is built in increments, ordered from the most to the least value del
 
 ## Definition of done
 
-- `./mvnw verify` passes: tests, 100% line and branch coverage, every mutant of the domain and application layers killed, architecture rules.
+- `./mvnw verify` passes: tests, 100% line and branch coverage of the domain and application layers, every mutant of the domain and application layers killed, architecture rules.
 - [design.md](design.md) updated: new decisions and the requirements traceability matrix.
 - [trade-offs.md](trade-offs.md) updated: new compromises and time spent.
 - README updated when installing, testing or running changes.
