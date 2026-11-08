@@ -225,14 +225,18 @@ class WalletServiceTest {
         assertThat(ledger.size()).isEqualTo(depositsOnly);
     }
 
+    // A transfer to another wallet opens a transaction (eachTransferRunsInOneTransaction); this one
+    // can never succeed, so it must not wait for its wallet's lock either.
     @Test
-    void refusesATransferToTheOwnersOwnWallet() {
+    void refusesATransferToTheOwnersOwnWalletBeforeTouchingIt() {
         var alice = anOwner();
         var wallet = service.open(alice);
         service.deposit(alice, money("25.00"), CORRELATION);
+        var before = transactions.count;
 
         assertThatExceptionOfType(SameWalletTransferException.class)
                 .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.50"), CORRELATION));
+        assertThat(transactions.count).isEqualTo(before);
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
     }
 
