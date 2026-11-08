@@ -3,6 +3,7 @@ package com.ebravo.wallet.adapter.persistence;
 import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Wallet;
+import com.ebravo.wallet.domain.WalletId;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +30,11 @@ class JpaWalletRepository implements WalletRepository {
     @Override
     public Optional<Wallet> lockByOwner(OwnerId owner) {
         return jpa.lockByOwnerId(owner.value()).map(WalletEntity::toDomain);
+    }
+
+    @Override
+    public Optional<Wallet> lockById(WalletId id) {
+        return jpa.lockById(id.value()).map(WalletEntity::toDomain);
     }
 
     @Override
