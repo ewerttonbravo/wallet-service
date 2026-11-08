@@ -38,3 +38,4 @@ Each compromise has a kind: a **design choice** would stay the same with more ti
 | 1 | Create a wallet and retrieve its balance: domain, PostgreSQL persistence, JWT security, HTTP API, stricter architecture rules | 0.7 |
 | 2 | Local token issuer and PostgreSQL in Docker Compose, tests against issued tokens, audience validation | 0.4 |
 | 3 | Deposits and withdrawals on a double-entry, append-only ledger; row locks with a bounded wait; correlation ids; mutation testing gate | 1.0 |
+| 3 (follow-up) | Coverage gate scoped to the domain and application layers, posting atomicity test, correlation id trust recorded | 0.3 |
