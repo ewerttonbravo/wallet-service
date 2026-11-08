@@ -26,6 +26,16 @@ class LedgerTransactionTest {
     }
 
     @Test
+    void keepsEveryFieldAsGiven() {
+        var transaction = transaction(List.of(new ExternalEntry(money("-1.00")), new WalletEntry(WALLET, money("1.00"), money("1.00"))));
+
+        assertThat(transaction.id()).isEqualTo(ID);
+        assertThat(transaction.type()).isEqualTo(DEPOSIT);
+        assertThat(transaction.correlationId()).isEqualTo(CORRELATION);
+        assertThat(transaction.createdAt()).isEqualTo(NOW);
+    }
+
+    @Test
     void rejectsEntriesThatDoNotSumToZero() {
         var entries = List.<LedgerEntry>of(new ExternalEntry(money("-10.00")), new WalletEntry(WALLET, money("10.01"), money("25.01")));
 
