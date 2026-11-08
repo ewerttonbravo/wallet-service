@@ -77,6 +77,7 @@ class JdbcLedger implements Ledger {
                         TransactionType.valueOf(rs.getString("type")),
                         new Money(rs.getBigDecimal("amount")),
                         new Money(rs.getBigDecimal("balance_after")),
+                        Optional.empty(),
                         new CorrelationId(rs.getString("correlation_id")),
                         rs.getObject("created_at", OffsetDateTime.class).toInstant()))
                 .optional();

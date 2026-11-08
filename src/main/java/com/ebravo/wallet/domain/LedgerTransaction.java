@@ -33,7 +33,12 @@ public record LedgerTransaction(
         return walletEntries(entries)
                 .filter(own -> own.wallet().equals(wallet))
                 .findFirst()
-                .map(own -> new WalletTransaction(id, type, own.amount(), own.balanceAfter(), correlationId, createdAt));
+                .map(own -> new WalletTransaction(
+                        id, type, own.amount(), own.balanceAfter(), counterpartyOf(wallet), correlationId, createdAt));
+    }
+
+    private Optional<WalletId> counterpartyOf(WalletId wallet) {
+        return walletEntries(entries).map(WalletEntry::wallet).filter(other -> !other.equals(wallet)).findFirst();
     }
 
     private static Stream<WalletEntry> walletEntries(List<LedgerEntry> entries) {
