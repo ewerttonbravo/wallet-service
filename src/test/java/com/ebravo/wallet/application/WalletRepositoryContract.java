@@ -64,6 +64,19 @@ public interface WalletRepositoryContract {
     }
 
     @Test
+    default void locksTheWalletWithTheId() {
+        var wallet = Wallet.open(anOwner(), NOW);
+        repository().add(wallet);
+
+        assertThat(transactions().inTransaction(() -> repository().lockById(wallet.id()))).contains(wallet);
+    }
+
+    @Test
+    default void locksNothingForAnUnknownId() {
+        assertThat(transactions().inTransaction(() -> repository().lockById(WalletId.newId()))).isEmpty();
+    }
+
+    @Test
     default void storesTheNewBalance() {
         var wallet = Wallet.open(anOwner(), NOW);
         repository().add(wallet);

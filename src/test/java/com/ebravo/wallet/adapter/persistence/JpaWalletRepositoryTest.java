@@ -9,6 +9,7 @@ import com.ebravo.wallet.application.Transactions;
 import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.application.WalletRepositoryContract;
 import com.ebravo.wallet.domain.Wallet;
+import com.ebravo.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -37,6 +38,12 @@ class JpaWalletRepositoryTest implements WalletRepositoryContract {
     void refusesToLockOutsideATransaction() {
         assertThatExceptionOfType(IllegalTransactionStateException.class)
                 .isThrownBy(() -> repository.lockByOwner(anOwner()));
+    }
+
+    @Test
+    void refusesToLockByIdOutsideATransaction() {
+        assertThatExceptionOfType(IllegalTransactionStateException.class)
+                .isThrownBy(() -> repository.lockById(WalletId.newId()));
     }
 
     // A balance changed outside the use case's transaction could be committed without its ledger entry.
