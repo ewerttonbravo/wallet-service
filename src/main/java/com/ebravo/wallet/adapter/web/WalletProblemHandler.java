@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.web;
 
+import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
 import com.ebravo.wallet.domain.WalletException;
 import com.ebravo.wallet.domain.WalletNotFoundException;
@@ -15,6 +16,7 @@ class WalletProblemHandler {
     @ExceptionHandler
     ProblemDetail handle(WalletException exception) {
         var status = switch (exception) {
+            case InvalidAmountException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case WalletAlreadyExistsException _ -> HttpStatus.CONFLICT;
             case WalletNotFoundException _ -> HttpStatus.NOT_FOUND;
         };
