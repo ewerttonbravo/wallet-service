@@ -18,7 +18,7 @@ This document defines what the Wallet Service must do (functional requirements),
 
 | ID | Requirement | Approach |
 |---|---|---|
-| NFR1 | Full traceability | Double-entry, append-only ledger. Every operation is a transaction whose entries sum to zero. Entries are never updated or deleted. Each entry records its transaction, account, signed amount, resulting balance, timestamp and correlation id. Any balance can be rebuilt and reconciled from the ledger. |
+| NFR1 | Full traceability | Double-entry, append-only ledger. Every operation is a transaction whose entries sum to zero. Entries are never updated or deleted. Each entry records its transaction, account, signed amount, timestamp and correlation id; each wallet entry also records the wallet's resulting balance. The external account keeps no running balance: its balance is the sum of its entries. Any balance can be rebuilt and reconciled from the ledger. |
 | NFR2 | Correctness under concurrency | ACID transactions. Pessimistic row locks (`SELECT … FOR UPDATE`) on the affected wallets. Transfers lock wallets in a deterministic order to prevent deadlocks. A database `CHECK` constraint keeps user balances non-negative as a last line of defense. |
 | NFR3 | Idempotency | Deposit, withdrawal and transfer require an `Idempotency-Key` header. Replaying a key returns the original result without posting again. Reusing a key with a different payload is rejected. |
 | NFR4 | Availability | Stateless service, horizontally scalable. Liveness and readiness probes. Graceful shutdown that drains in-flight requests. |
@@ -49,6 +49,8 @@ Where the brief leaves a behavior undefined, these assumptions close the gap. Th
 | A9 | No minimum or maximum amount per operation and no daily limits. | Limits are business policy. Inventing values would add rules nobody asked for. |
 | A10 | Wallets are never closed or deleted. | Closure raises questions (remaining balance, retention) the brief does not answer, and the ledger must remain available for auditing anyway. |
 | A11 | Idempotency keys are kept for as long as the transaction they produced. | A retry may arrive at any time; expiring keys would reopen the door to moving money twice. |
+| A12 | Amounts and balances are bounded by what the ledger stores: at most 99,999,999,999,999,999.99 in magnitude. A larger amount, or a deposit that would take the balance past it, is rejected. | The bound is technical, not a business limit (A9 still holds). Rejecting it is a clear client error instead of a database failure. |
+| A13 | A caller may send its own correlation id in `X-Correlation-Id` (1 to 64 letters, digits, `.`, `_`, `:` or `-`); without one, the service generates a UUID. | Gateways and upstream services already trace requests with their own ids; reusing them ties a ledger entry to the whole request path. The format keeps untrusted input out of headers and the audit trail. |
 
 ## Out of scope
 

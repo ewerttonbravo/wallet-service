@@ -8,7 +8,7 @@ The service is built in increments, ordered from the most to the least value del
 |---|---|---|---|
 | 1 | `sprint/01-wallet` | Create a wallet and retrieve its balance, with the owner taken from the JWT and data stored in PostgreSQL | FR1, FR2, NFR6, NFR8, NFR7 and NFR9 partially |
 | 2 | `sprint/02-local-issuer` | A local token issuer and PostgreSQL in Docker Compose, so the service can be run and called with real tokens; audience validation | NFR9, NFR10 partially |
-| 3 | `sprint/03-deposit-withdraw` | Deposits and withdrawals on a double-entry ledger, pessimistic locking, non-negative balance constraint, correlation id recorded on every entry | FR4, FR5, NFR1, NFR2 partially |
+| 3 | `sprint/03-deposit-withdraw` | Deposits and withdrawals on a double-entry ledger, pessimistic locking, non-negative balance constraint, correlation id recorded on every entry; a single transaction can be read back | FR4, FR5, NFR1, NFR2 partially, FR7 partially |
 | 4 | `sprint/04-transfer` | Atomic transfers, locks acquired in a deterministic order, deadlock-free concurrency test | FR6, NFR2 |
 | 5 | `sprint/05-idempotency` | `Idempotency-Key` on deposits, withdrawals and transfers: a replay returns the original result, a different payload is rejected | NFR3 |
 | 6 | `sprint/06-history` | Historical balance at an instant and paginated transaction listing | FR3, FR7 |
@@ -25,7 +25,7 @@ The service is built in increments, ordered from the most to the least value del
 
 ## Definition of done
 
-- `./mvnw verify` passes: tests, 100% line and branch coverage, architecture rules.
+- `./mvnw verify` passes: tests, 100% line and branch coverage, every mutant of the domain and application layers killed, architecture rules.
 - [design.md](design.md) updated: new decisions and the requirements traceability matrix.
 - [trade-offs.md](trade-offs.md) updated: new compromises and time spent.
 - README updated when installing, testing or running changes.
