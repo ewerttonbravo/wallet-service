@@ -1,6 +1,7 @@
 package com.ebravo.wallet.domain;
 
 import static com.ebravo.wallet.domain.TransactionType.DEPOSIT;
+import static com.ebravo.wallet.domain.TransactionType.TRANSFER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
@@ -9,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class LedgerTransactionTest {
@@ -81,7 +83,21 @@ class LedgerTransactionTest {
         var transaction = transaction(List.of(new ExternalEntry(money("-10.00")), new WalletEntry(WALLET, money("10.00"), money("25.00"))));
 
         assertThat(transaction.viewFor(WALLET))
-                .contains(new WalletTransaction(ID, DEPOSIT, money("10.00"), money("25.00"), CORRELATION, NOW));
+                .contains(new WalletTransaction(ID, DEPOSIT, money("10.00"), money("25.00"), Optional.empty(), CORRELATION, NOW));
+    }
+
+    // The external account is not a wallet: a deposit names no counterparty (above), a transfer names the other wallet.
+    @Test
+    void showsEachSideOfATransferTheOtherWalletAsCounterparty() {
+        var recipient = WalletId.newId();
+        var transfer = new LedgerTransaction(ID, TRANSFER,
+                List.of(new WalletEntry(WALLET, money("-10.00"), money("15.00")), new WalletEntry(recipient, money("10.00"), money("10.00"))),
+                CORRELATION, NOW);
+
+        assertThat(transfer.viewFor(WALLET)).contains(
+                new WalletTransaction(ID, TRANSFER, money("-10.00"), money("15.00"), Optional.of(recipient), CORRELATION, NOW));
+        assertThat(transfer.viewFor(recipient)).contains(
+                new WalletTransaction(ID, TRANSFER, money("10.00"), money("10.00"), Optional.of(WALLET), CORRELATION, NOW));
     }
 
     @Test

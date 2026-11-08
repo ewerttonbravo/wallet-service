@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
@@ -83,7 +84,7 @@ class WalletServiceTest {
         var deposit = service.deposit(owner, money("10.50"), CORRELATION);
 
         assertThat(deposit).usingRecursiveComparison().ignoringFields("id").isEqualTo(new WalletTransaction(
-                TransactionId.newId(), TransactionType.DEPOSIT, money("10.50"), money("10.50"), CORRELATION, NOW_IN_MICROS));
+                TransactionId.newId(), TransactionType.DEPOSIT, money("10.50"), money("10.50"), Optional.empty(), CORRELATION, NOW_IN_MICROS));
         assertThat(service.get(owner).balance()).isEqualTo(money("10.50"));
         assertThat(ledger.find(wallet.id(), deposit.id())).contains(deposit);
     }
@@ -98,7 +99,7 @@ class WalletServiceTest {
 
         assertThat(withdrawal).usingRecursiveComparison().ignoringFields("id").isEqualTo(new WalletTransaction(
                 TransactionId.newId(), TransactionType.WITHDRAWAL, money("-0.50"), money("10.00"),
-                new CorrelationId("request-2"), NOW_IN_MICROS));
+                Optional.empty(), new CorrelationId("request-2"), NOW_IN_MICROS));
         assertThat(service.get(owner).balance()).isEqualTo(money("10.00"));
         assertThat(ledger.find(wallet.id(), withdrawal.id())).contains(withdrawal);
     }
