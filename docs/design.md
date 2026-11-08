@@ -21,11 +21,12 @@ Dependencies point inward: technology depends on the domain, never the other way
 - Spring Security as an OAuth2 resource server (JWT).
 - Maven through the Maven Wrapper.
 - JUnit 5, AssertJ, ArchUnit, JaCoCo, Testcontainers.
+- Docker Compose for local runs: PostgreSQL and [mock-oauth2-server](https://github.com/navikt/mock-oauth2-server) as the local token issuer.
 - GitHub Actions runs `./mvnw verify` on every push and pull request.
 
 ## API
 
-Every endpoint except health requires a bearer JWT. The wallet is always the caller's own, identified by the token subject.
+Every endpoint except health requires a bearer JWT from the configured issuer, issued to the `wallet-service` audience. The wallet is always the caller's own, identified by the token subject.
 
 | Method and path | Success | Errors |
 |---|---|---|
@@ -60,6 +61,8 @@ Errors other than `401` are Problem Details (`application/problem+json`). Timest
 | D18 | Configuration through Spring's standard environment variables, no defaults | `SPRING_DATASOURCE_*` and the JWT issuer must be provided; the service fails fast without them and no credential is committed. |
 | D19 | Integration tests against a real PostgreSQL in Testcontainers, one shared context | Behavior that matters (constraints, concurrency, `timestamptz` precision) is exercised on the real database. Each test uses a fresh owner, which isolates tests without cleanup. |
 | D20 | Adapters must not depend on each other, the wiring package included | `adapter.config` wires only through application ports; adapter classes are package-private, so it could not reach them anyway. A bean that needs a concrete adapter is declared in that adapter's own package, as `SecurityConfiguration` is. Exempting the wiring package would weaken the rule for a case that does not exist. |
+| D21 | Token audience fixed to `wallet-service`, overridable per environment | Without an audience check, a token issued to any other service of the same provider would be accepted. Spring skips the check when the setting is absent, so a required variable would fail open if forgotten; a fixed value fails closed. It names the service rather than an environment, so D18 does not apply. |
+| D22 | One local issuer, the same image in Docker Compose and in tests | Tests validate tokens the issuer signs through the production decoder, so signature, issuer and audience checks are exercised as they run. API tests keep Spring Security's test tokens, which are faster and keep each test focused on the API. The issuer is started by a context initializer: the JWT decoder is auto-configured only if the issuer URI is set before the context refreshes. |
 
 ## Requirements traceability
 
@@ -80,6 +83,6 @@ Errors other than `401` are Problem Details (`application/problem+json`). Timest
 | NFR6 Monetary precision | Done | `Money`: `BigDecimal` scale 2, BRL, finer amounts rejected; `numeric(19, 2)`; decimal strings in JSON | `MoneyTest`, `WalletApiTest` |
 | NFR7 API contract | Partial | REST + JSON, Problem Details for business errors, ISO-8601 UTC timestamps; OpenAPI pending | `WalletApiTest` |
 | NFR8 Persistence | Done | PostgreSQL, Flyway migrations, schema validated at startup | `JpaWalletRepositoryTest` |
-| NFR9 Security | Partial | JWT resource server, owner from the token subject; audience validation pending | `WalletApiTest` |
-| NFR10 Ease of running | Partial | Maven Wrapper; tests provision PostgreSQL with Testcontainers | `./mvnw verify` |
+| NFR9 Security | Done | JWT resource server: signature, issuer, expiry and audience validated; owner from the token subject | `WalletApiTest`, `JwtAuthenticationTest` |
+| NFR10 Ease of running | Partial | Maven Wrapper; PostgreSQL and the local issuer in Docker Compose; tests provision both with Testcontainers; service container pending | `./mvnw verify`, README run steps |
 | NFR11 Testability | Done | JaCoCo gate in `pom.xml`; framework-free domain and application; layering rules | `ArchitectureTest`, `./mvnw verify` |
