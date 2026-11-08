@@ -25,4 +25,14 @@ class JpaWalletRepository implements WalletRepository {
     public Optional<Wallet> findByOwner(OwnerId owner) {
         return jpa.findByOwnerId(owner.value()).map(WalletEntity::toDomain);
     }
+
+    @Override
+    public Optional<Wallet> lockByOwner(OwnerId owner) {
+        return jpa.lockByOwnerId(owner.value()).map(WalletEntity::toDomain);
+    }
+
+    @Override
+    public void updateBalance(Wallet wallet) {
+        jpa.updateBalance(wallet.id().value(), wallet.balance().amount());
+    }
 }
