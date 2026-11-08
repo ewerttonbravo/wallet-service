@@ -65,9 +65,12 @@ class JdbcLedger implements Ledger {
     @Override
     public Optional<WalletTransaction> find(WalletId wallet, TransactionId id) {
         return jdbc.sql("""
-                        select t.id, t.type, t.correlation_id, t.created_at, e.amount, e.balance_after
+                        select t.id, t.type, t.correlation_id, t.created_at, e.amount, e.balance_after,
+                               other.wallet_id as counterparty
                         from ledger_transaction t
                         join ledger_entry e on e.transaction_id = t.id
+                        -- The other wallet of a transfer; the external account (null wallet) never matches.
+                        left join ledger_entry other on other.transaction_id = t.id and other.wallet_id <> e.wallet_id
                         where t.id = :id and e.wallet_id = :wallet
                         """)
                 .param("id", id.value())
@@ -77,7 +80,7 @@ class JdbcLedger implements Ledger {
                         TransactionType.valueOf(rs.getString("type")),
                         new Money(rs.getBigDecimal("amount")),
                         new Money(rs.getBigDecimal("balance_after")),
-                        Optional.empty(),
+                        Optional.ofNullable(rs.getObject("counterparty", UUID.class)).map(WalletId::new),
                         new CorrelationId(rs.getString("correlation_id")),
                         rs.getObject("created_at", OffsetDateTime.class).toInstant()))
                 .optional();
