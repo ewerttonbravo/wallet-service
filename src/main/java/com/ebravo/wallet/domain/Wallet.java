@@ -41,6 +41,6 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
 
     private Posting post(TransactionType type, Money after, CorrelationId correlationId, Instant at, LedgerEntry... entries) {
         var transaction = new LedgerTransaction(TransactionId.newId(), type, List.of(entries), correlationId, at);
-        return new Posting(new Wallet(id, owner, after, createdAt), transaction);
+        return new Posting(List.of(new Wallet(id, owner, after, createdAt)), transaction);
     }
 }

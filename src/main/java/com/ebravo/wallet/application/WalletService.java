@@ -62,7 +62,7 @@ public final class WalletService {
             var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
             // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
             var posting = operation.apply(wallet, now());
-            wallets.updateBalance(posting.wallet());
+            posting.wallets().forEach(wallets::updateBalance);
             ledger.append(posting.transaction());
             return posting.transaction().viewFor(wallet.id()).orElseThrow();
         });

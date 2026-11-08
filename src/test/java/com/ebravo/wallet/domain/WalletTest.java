@@ -48,7 +48,7 @@ class WalletTest {
 
         var posting = wallet.deposit(money("10.50"), CORRELATION, LATER);
 
-        assertThat(posting.wallet()).isEqualTo(new Wallet(wallet.id(), OWNER, money("35.50"), NOW));
+        assertThat(posting.wallets()).containsExactly(new Wallet(wallet.id(), OWNER, money("35.50"), NOW));
         var transaction = posting.transaction();
         assertThat(transaction.type()).isEqualTo(TransactionType.DEPOSIT);
         assertThat(transaction.entries()).containsExactly(
@@ -63,7 +63,7 @@ class WalletTest {
 
         var posting = wallet.withdraw(money("10.50"), CORRELATION, LATER);
 
-        assertThat(posting.wallet()).isEqualTo(new Wallet(wallet.id(), OWNER, money("14.50"), NOW));
+        assertThat(posting.wallets()).containsExactly(new Wallet(wallet.id(), OWNER, money("14.50"), NOW));
         var transaction = posting.transaction();
         assertThat(transaction.type()).isEqualTo(TransactionType.WITHDRAWAL);
         assertThat(transaction.entries()).containsExactly(
@@ -82,7 +82,7 @@ class WalletTest {
 
     @Test
     void withdrawingTheWholeBalanceLeavesZero() {
-        assertThat(withBalance("25.00").withdraw(money("25.00"), CORRELATION, LATER).wallet().balance()).isEqualTo(Money.ZERO);
+        assertThat(withBalance("25.00").withdraw(money("25.00"), CORRELATION, LATER).wallets().getFirst().balance()).isEqualTo(Money.ZERO);
     }
 
     // The whole balance can be withdrawn (above), so only the extra cent explains the rejection.
@@ -116,7 +116,7 @@ class WalletTest {
     void acceptsADepositThatReachesTheLargestStorableBalance() {
         var wallet = withBalance("99999999999999989.99");
 
-        assertThat(wallet.deposit(money("10.00"), CORRELATION, LATER).wallet().balance()).isEqualTo(Money.MAX);
+        assertThat(wallet.deposit(money("10.00"), CORRELATION, LATER).wallets().getFirst().balance()).isEqualTo(Money.MAX);
     }
 
     @Test

@@ -37,7 +37,7 @@ public interface LedgerContract {
     default void keepsTheSignedAmountAndResultingBalanceOfAWithdrawal() {
         var wallet = aWallet();
         var deposit = wallet.deposit(money("10.50"), CORRELATION, NOW);
-        var withdrawal = deposit.wallet().withdraw(money("0.50"), new CorrelationId("request-2"), NOW.plusSeconds(1)).transaction();
+        var withdrawal = deposit.wallets().getFirst().withdraw(money("0.50"), new CorrelationId("request-2"), NOW.plusSeconds(1)).transaction();
 
         append(deposit.transaction());
         append(withdrawal);
