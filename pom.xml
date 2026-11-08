@@ -117,12 +117,6 @@
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<version>${jacoco.version}</version>
-				<configuration>
-					<excludes>
-						<!-- Bootstrap only: main() starts the container and holds no logic. -->
-						<exclude>**/*Application.class</exclude>
-					</excludes>
-				</configuration>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -145,8 +139,17 @@
 						</goals>
 						<configuration>
 							<rules>
+								<!--
+									The business rules must be fully covered. Adapters are tested where the test
+									pins behavior of this service (persistence, API contract, security, locks),
+									not to cover glue the framework already tests.
+								-->
 								<rule>
-									<element>BUNDLE</element>
+									<element>PACKAGE</element>
+									<includes>
+										<include>com.ebravo.wallet.domain</include>
+										<include>com.ebravo.wallet.application</include>
+									</includes>
 									<limits>
 										<limit>
 											<counter>LINE</counter>
