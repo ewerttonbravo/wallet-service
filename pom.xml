@@ -190,6 +190,10 @@
 					<!-- Surefire's argLine holds late-bound @{argLine} placeholders that PIT cannot resolve. -->
 					<parseSurefireArgLine>false</parseSurefireArgLine>
 					<timestampedReports>false</timestampedReports>
+					<outputFormats>
+						<param>HTML</param>
+						<param>XML</param>
+					</outputFormats>
 				</configuration>
 				<executions>
 					<execution>
