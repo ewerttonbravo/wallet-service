@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, balances, deposits and withdrawals work today; transfers, idempotency keys and history come next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, balances, deposits, withdrawals and transfers work today; idempotency keys and history come next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -66,6 +66,20 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
 ```
 
 Read a transaction back with the `Location` path of its response (`curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/transactions/<id>`). `X-Correlation-Id` is optional: the service stores it with the transaction and returns it, or generates one when it is missing.
+
+Transfer to another user. The recipient is named by its wallet id, the `id` that `GET /wallets/me` returns to its owner:
+
+```sh
+BOB_TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=bob -d client_secret=any \
+  -d scope=wallet-service http://localhost:9000/local/token | jq -r .access_token)
+BOB_WALLET=$(curl -s -X POST -H "Authorization: Bearer $BOB_TOKEN" http://localhost:8080/wallets | jq -r .id)
+
+curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d "{\"recipientWalletId\": \"$BOB_WALLET\", \"amount\": \"20.00\"}" http://localhost:8080/wallets/me/transfers
+curl -H "Authorization: Bearer $BOB_TOKEN" http://localhost:8080/wallets/me/balance
+```
+
+Both wallets see the transfer at the same `Location`, each with its own signed amount and balance, and the other wallet as `counterpartyWalletId`.
 
 Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.
 
