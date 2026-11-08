@@ -21,6 +21,10 @@ public interface WalletRepository {
      */
     Optional<Wallet> lockByOwner(OwnerId owner);
 
-    /** Stores the wallet's new balance. Must run inside {@link Transactions#inTransaction}. */
+    /**
+     * Stores the wallet's new balance. Must run inside {@link Transactions#inTransaction}.
+     *
+     * @throws IllegalStateException when no such wallet is stored
+     */
     void updateBalance(Wallet wallet);
 }

@@ -33,6 +33,8 @@ class JpaWalletRepository implements WalletRepository {
 
     @Override
     public void updateBalance(Wallet wallet) {
-        jpa.updateBalance(wallet.id().value(), wallet.balance().amount());
+        if (jpa.updateBalance(wallet.id().value(), wallet.balance().amount()) != 1) {
+            throw new IllegalStateException("No wallet %s to update".formatted(wallet.id().value()));
+        }
     }
 }

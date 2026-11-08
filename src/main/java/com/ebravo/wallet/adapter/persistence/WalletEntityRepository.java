@@ -48,5 +48,5 @@ interface WalletEntityRepository extends Repository<WalletEntity, UUID> {
     @Transactional(propagation = Propagation.MANDATORY)
     @Modifying
     @Query(nativeQuery = true, value = "update wallet set balance = :balance where id = :id")
-    void updateBalance(UUID id, BigDecimal balance);
+    int updateBalance(UUID id, BigDecimal balance);
 }

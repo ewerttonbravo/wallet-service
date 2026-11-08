@@ -27,7 +27,10 @@ public final class InMemoryWalletRepository implements WalletRepository {
 
     @Override
     public void updateBalance(Wallet wallet) {
-        walletsByOwner.computeIfPresent(wallet.owner(), (_, stored) ->
+        var updated = walletsByOwner.computeIfPresent(wallet.owner(), (_, stored) ->
                 new Wallet(stored.id(), stored.owner(), wallet.balance(), stored.createdAt()));
+        if (updated == null) {
+            throw new IllegalStateException("No wallet %s to update".formatted(wallet.id().value()));
+        }
     }
 }
