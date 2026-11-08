@@ -27,6 +27,20 @@ public record LedgerTransaction(
         if (!sum.equals(Money.ZERO)) {
             throw new IllegalArgumentException("Ledger entries must sum to zero, got " + sum.amount().toPlainString());
         }
+        if (!fitsItsType(type, entries)) {
+            throw new IllegalArgumentException("The entries do not fit a " + type
+                    + ": a deposit or withdrawal has one wallet entry and one external entry, a transfer has two wallet entries");
+        }
+    }
+
+    /** Money enters or leaves through the external account only in deposits and withdrawals. */
+    private static boolean fitsItsType(TransactionType type, List<LedgerEntry> entries) {
+        var wallets = walletEntries(entries).toList();
+        return entries.size() == 2 && switch (type) {
+            case DEPOSIT -> wallets.size() == 1 && wallets.getFirst().amount().isPositive();
+            case WITHDRAWAL -> wallets.size() == 1 && !wallets.getFirst().amount().isPositive();
+            case TRANSFER -> wallets.size() == 2;
+        };
     }
 
     public Optional<WalletTransaction> viewFor(WalletId wallet) {
