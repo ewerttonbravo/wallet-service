@@ -10,9 +10,11 @@ import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.domain.Wallet;
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -70,6 +72,49 @@ class LedgerSchemaTest {
         assertThatExceptionOfType(DataIntegrityViolationException.class)
                 .isThrownBy(() -> transaction.executeWithoutResult(_ -> insertTransaction(UUID.randomUUID(), "REFUND")))
                 .withMessageContaining("ck_ledger_transaction_type");
+    }
+
+    // Each case balances to zero, so only its type's shape can refuse it; acceptsABalancedTransaction
+    // and acceptsATransferBetweenTwoWallets write the shapes that fit.
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "DEPOSIT    | A:-10.00:0.00, X:10.00",
+            "DEPOSIT    | A:-10.00:0.00, B:10.00:10.00",
+            "DEPOSIT    | X:-5.00, X:-5.00, A:10.00:10.00",
+            "WITHDRAWAL | X:-10.00, A:10.00:10.00",
+            "WITHDRAWAL | A:-10.00:0.00, B:10.00:10.00",
+            "WITHDRAWAL | A:-10.00:0.00, X:5.00, X:5.00",
+            "TRANSFER   | X:-10.00, A:10.00:10.00",
+            "TRANSFER   | A:-10.00:0.00, B:5.00:5.00, X:5.00"})
+    void refusesEntriesThatDoNotFitTheTransactionType(String type, String entries) {
+        var wallets = Map.of("A", aWallet(), "B", aWallet());
+        var id = UUID.randomUUID();
+
+        assertThatExceptionOfType(DataIntegrityViolationException.class)
+                .isThrownBy(() -> transaction.executeWithoutResult(_ -> {
+                    insertTransaction(id, type);
+                    for (var entry : entries.split(",\\s*")) {
+                        var parts = entry.split(":");
+                        var wallet = parts[0].equals("X") ? null : wallets.get(parts[0]);
+                        insertEntry(id, wallet, parts[1], parts.length > 2 ? parts[2] : null);
+                    }
+                }))
+                .withMessageContaining("does not fit its type " + type);
+        assertThat(entriesOf(id)).isZero();
+    }
+
+    @Test
+    void acceptsAWithdrawal() {
+        var wallet = aWallet();
+        var id = UUID.randomUUID();
+
+        transaction.executeWithoutResult(_ -> {
+            insertTransaction(id, "WITHDRAWAL");
+            insertEntry(id, wallet, "-10.00", "0.00");
+            insertEntry(id, null, "10.00", null);
+        });
+
+        assertThat(entriesOf(id)).isEqualTo(2);
     }
 
     @Test
