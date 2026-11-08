@@ -23,8 +23,8 @@ class WalletProblemHandlerTest {
 
     static Stream<Arguments> errors() {
         return Stream.of(
-                Arguments.of(new BalanceLimitExceededException("The balance"), 422),
-                Arguments.of(new InsufficientFundsException("withdrawal"), 422),
+                Arguments.of(BalanceLimitExceededException.ofTheWallet(), 422),
+                Arguments.of(InsufficientFundsException.forWithdrawal(), 422),
                 Arguments.of(new InvalidAmountException("Amount must be positive"), 422),
                 Arguments.of(new RecipientNotFoundException(), 422),
                 Arguments.of(new SameWalletTransferException(), 422),

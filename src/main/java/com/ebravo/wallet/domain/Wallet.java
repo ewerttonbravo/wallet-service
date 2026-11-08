@@ -21,7 +21,7 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
     public Posting deposit(Money amount, CorrelationId correlationId, Instant at) {
         amount.requirePositive();
         if (amount.isGreaterThan(Money.MAX.subtract(balance))) {
-            throw new BalanceLimitExceededException("The balance");
+            throw BalanceLimitExceededException.ofTheWallet();
         }
         var after = balance.add(amount);
         return post(TransactionType.DEPOSIT, after, correlationId, at,
@@ -32,7 +32,7 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
     public Posting withdraw(Money amount, CorrelationId correlationId, Instant at) {
         amount.requirePositive();
         if (amount.isGreaterThan(balance)) {
-            throw new InsufficientFundsException("withdrawal");
+            throw InsufficientFundsException.forWithdrawal();
         }
         var after = balance.subtract(amount);
         return post(TransactionType.WITHDRAWAL, after, correlationId, at,
@@ -46,10 +46,10 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
             throw new SameWalletTransferException();
         }
         if (amount.isGreaterThan(balance)) {
-            throw new InsufficientFundsException("transfer");
+            throw InsufficientFundsException.forTransfer();
         }
         if (amount.isGreaterThan(Money.MAX.subtract(recipient.balance))) {
-            throw new BalanceLimitExceededException("The recipient's balance");
+            throw BalanceLimitExceededException.ofTheRecipient();
         }
         var after = balance.subtract(amount);
         var recipientAfter = recipient.balance.add(amount);

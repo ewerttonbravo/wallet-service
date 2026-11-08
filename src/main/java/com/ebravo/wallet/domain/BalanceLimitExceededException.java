@@ -2,8 +2,15 @@ package com.ebravo.wallet.domain;
 
 public final class BalanceLimitExceededException extends WalletException {
 
-    /** @param balance whose balance it is, such as "The recipient's balance" */
-    public BalanceLimitExceededException(String balance) {
+    private BalanceLimitExceededException(String balance) {
         super(balance + " would exceed " + Money.MAX.amount().toPlainString());
+    }
+
+    public static BalanceLimitExceededException ofTheWallet() {
+        return new BalanceLimitExceededException("The balance");
+    }
+
+    public static BalanceLimitExceededException ofTheRecipient() {
+        return new BalanceLimitExceededException("The recipient's balance");
     }
 }
