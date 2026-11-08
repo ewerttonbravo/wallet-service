@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -28,6 +29,18 @@ class LockTimeoutApiTest {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private JdbcClient jdbc;
+
+    /**
+     * Only the wallet lock gives up early. A session-wide limit would also hit migrations, whose
+     * table locks may wait for in-flight postings during a rolling deploy.
+     */
+    @Test
+    void leavesOtherStatementsWithTheServerLockTimeout() {
+        assertThat(jdbc.sql("show lock_timeout").query(String.class).single()).isEqualTo("0");
+    }
 
     /**
      * Another transaction holds the wallet's row. The deposit gives up instead of waiting forever,
