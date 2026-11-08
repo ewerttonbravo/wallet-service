@@ -12,7 +12,7 @@ Work in progress. Installation, usage, and design documentation will be added as
 
 ## Build and test
 
-Requires JDK 25 and a running Docker daemon: integration tests start their own PostgreSQL with Testcontainers. The Maven Wrapper downloads Maven on first use.
+Requires JDK 25 and a running Docker daemon: integration tests start their own PostgreSQL and token issuer with Testcontainers. The Maven Wrapper downloads Maven on first use.
 
 ```sh
 ./mvnw verify
