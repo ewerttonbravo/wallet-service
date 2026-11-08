@@ -24,7 +24,8 @@ create table ledger_entry (
         or (wallet_id is not null and balance_after is not null and balance_after >= 0))
 );
 
-create index ix_ledger_entry_transaction on ledger_entry (transaction_id);
+-- A wallet's view of a transaction is its single entry; external entries (null wallet) are not limited.
+create unique index uk_ledger_entry_wallet_per_transaction on ledger_entry (transaction_id, wallet_id);
 create index ix_ledger_entry_wallet on ledger_entry (wallet_id, id);
 
 create function reject_ledger_change() returns trigger language plpgsql as $$
