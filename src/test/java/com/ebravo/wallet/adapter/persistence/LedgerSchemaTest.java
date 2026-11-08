@@ -50,6 +50,29 @@ class LedgerSchemaTest {
     }
 
     @Test
+    void acceptsATransferBetweenTwoWallets() {
+        var sender = aWallet();
+        var recipient = aWallet();
+        var id = UUID.randomUUID();
+
+        transaction.executeWithoutResult(_ -> {
+            insertTransaction(id, "TRANSFER");
+            insertEntry(id, sender, "-10.00", "0.00");
+            insertEntry(id, recipient, "10.00", "10.00");
+        });
+
+        assertThat(entriesOf(id)).isEqualTo(2);
+    }
+
+    // DEPOSIT and TRANSFER are accepted (above), so the type check is what refuses this one.
+    @Test
+    void refusesAnUnknownTransactionType() {
+        assertThatExceptionOfType(DataIntegrityViolationException.class)
+                .isThrownBy(() -> transaction.executeWithoutResult(_ -> insertTransaction(UUID.randomUUID(), "REFUND")))
+                .withMessageContaining("ck_ledger_transaction_type");
+    }
+
+    @Test
     void refusesATransactionWhoseEntriesDoNotSumToZero() {
         var wallet = aWallet();
         var id = UUID.randomUUID();
@@ -183,8 +206,13 @@ class LedgerSchemaTest {
     }
 
     private void insertTransaction(UUID id) {
-        jdbc.sql("insert into ledger_transaction (id, type, correlation_id, created_at) values (:id, 'DEPOSIT', 'test', :at)")
+        insertTransaction(id, "DEPOSIT");
+    }
+
+    private void insertTransaction(UUID id, String type) {
+        jdbc.sql("insert into ledger_transaction (id, type, correlation_id, created_at) values (:id, :type, 'test', :at)")
                 .param("id", id)
+                .param("type", type)
                 .param("at", NOW.atOffset(ZoneOffset.UTC))
                 .update();
     }
