@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Installation, usage, and design documentation will be added as the service is built.
+Work in progress. Wallets, balances, deposits and withdrawals work today; transfers, idempotency keys and history come next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -18,7 +18,7 @@ Requires JDK 25 and a running Docker daemon: integration tests start their own P
 ./mvnw verify
 ```
 
-The build fails if line or branch coverage drops below 100%, or if the domain or application layers depend on any framework.
+The build fails if line or branch coverage drops below 100%, if a mutant of the domain or application code survives the tests (PIT, report in `target/pit-reports`), or if the domain or application layers depend on any framework.
 
 With Colima instead of Docker Desktop, point Testcontainers to its socket first:
 
@@ -54,6 +54,18 @@ TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=alice -d client_se
 curl -i -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
 ```
+
+Deposit and withdraw. Amounts are decimal strings with at most two decimal places. Each call answers with the transaction it posted and a `Location` to read it back:
+
+```sh
+curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "X-Correlation-Id: my-request-1" -d '{"amount": "100.00"}' http://localhost:8080/wallets/me/deposits
+curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"amount": "30.50"}' http://localhost:8080/wallets/me/withdrawals
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
+```
+
+Read a transaction back with the `Location` path of its response (`curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/transactions/<id>`). `X-Correlation-Id` is optional: the service stores it with the transaction and returns it, or generates one when it is missing.
 
 Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.
 

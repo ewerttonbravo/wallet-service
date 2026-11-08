@@ -14,4 +14,17 @@ public interface WalletRepository {
     boolean add(Wallet wallet);
 
     Optional<Wallet> findByOwner(OwnerId owner);
+
+    /**
+     * Finds the wallet and locks it until the current transaction ends, so concurrent operations on
+     * it run one after the other. Must run inside {@link Transactions#inTransaction}.
+     */
+    Optional<Wallet> lockByOwner(OwnerId owner);
+
+    /**
+     * Stores the wallet's new balance. Must run inside {@link Transactions#inTransaction}.
+     *
+     * @throws IllegalStateException when no such wallet is stored
+     */
+    void updateBalance(Wallet wallet);
 }

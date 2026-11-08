@@ -20,6 +20,8 @@
 		<java.version>25</java.version>
 		<archunit.version>1.5.1</archunit.version>
 		<jacoco.version>0.8.16</jacoco.version>
+		<pitest.version>1.30.1</pitest.version>
+		<pitest-junit5.version>1.2.3</pitest-junit5.version>
 	</properties>
 
 	<dependencies>
@@ -160,6 +162,46 @@
 								</rule>
 							</rules>
 						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>${pitest.version}</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>${pitest-junit5.version}</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<!-- Business rules live here; adapters are covered by integration tests on the real stack. -->
+					<targetClasses>
+						<param>com.ebravo.wallet.domain.*</param>
+						<param>com.ebravo.wallet.application.*</param>
+					</targetClasses>
+					<targetTests>
+						<param>com.ebravo.wallet.domain.*</param>
+						<param>com.ebravo.wallet.application.*</param>
+					</targetTests>
+					<mutationThreshold>100</mutationThreshold>
+					<!-- Surefire's argLine holds late-bound @{argLine} placeholders that PIT cannot resolve. -->
+					<parseSurefireArgLine>false</parseSurefireArgLine>
+					<timestampedReports>false</timestampedReports>
+					<outputFormats>
+						<param>HTML</param>
+						<param>XML</param>
+					</outputFormats>
+				</configuration>
+				<executions>
+					<execution>
+						<id>mutation-gate</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>mutationCoverage</goal>
+						</goals>
 					</execution>
 				</executions>
 			</plugin>

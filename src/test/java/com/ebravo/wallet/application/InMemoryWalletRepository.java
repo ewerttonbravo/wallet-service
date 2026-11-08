@@ -19,4 +19,18 @@ public final class InMemoryWalletRepository implements WalletRepository {
     public Optional<Wallet> findByOwner(OwnerId owner) {
         return Optional.ofNullable(walletsByOwner.get(owner));
     }
+
+    @Override
+    public Optional<Wallet> lockByOwner(OwnerId owner) {
+        return findByOwner(owner);
+    }
+
+    @Override
+    public void updateBalance(Wallet wallet) {
+        var updated = walletsByOwner.computeIfPresent(wallet.owner(), (_, stored) ->
+                new Wallet(stored.id(), stored.owner(), wallet.balance(), stored.createdAt()));
+        if (updated == null) {
+            throw new IllegalStateException("No wallet %s to update".formatted(wallet.id().value()));
+        }
+    }
 }
