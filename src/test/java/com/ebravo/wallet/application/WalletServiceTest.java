@@ -216,13 +216,13 @@ class WalletServiceTest {
         var alice = anOwner();
         service.open(alice);
         service.deposit(alice, money("25.00"), CORRELATION);
-        var depositsOnly = ledgerSize();
+        var depositsOnly = ledger.size();
 
         assertThatExceptionOfType(RecipientNotFoundException.class)
                 .isThrownBy(() -> service.transfer(alice, WalletId.newId(), money("10.50"), CORRELATION))
                 .withMessage("The recipient wallet does not exist");
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
-        assertThat(ledgerSize()).isEqualTo(depositsOnly);
+        assertThat(ledger.size()).isEqualTo(depositsOnly);
     }
 
     @Test
@@ -308,10 +308,6 @@ class WalletServiceTest {
     void reportsATransactionLookupWithoutWallet() {
         assertThatExceptionOfType(WalletNotFoundException.class)
                 .isThrownBy(() -> service.transaction(anOwner(), TransactionId.newId()));
-    }
-
-    private long ledgerSize() {
-        return ledger.size();
     }
 
     private static Money money(String amount) {
