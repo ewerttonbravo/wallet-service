@@ -16,10 +16,9 @@ import com.ebravo.wallet.domain.WalletTransaction;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class WalletService {
@@ -70,9 +69,10 @@ public final class WalletService {
         return transactions.inTransaction(() -> {
             // Every transfer locks its wallets in id order: two opposing transfers queue for the first
             // lock instead of each holding the one the other waits for.
-            var locked = Stream.of(source, recipient).sorted()
-                    .flatMap(id -> wallets.lockById(id).stream())
-                    .collect(Collectors.toMap(Wallet::id, Function.identity()));
+            var locked = new HashMap<WalletId, Wallet>();
+            for (var id : Stream.of(source, recipient).sorted().toList()) {
+                wallets.lockById(id).ifPresent(wallet -> locked.put(id, wallet));
+            }
             var sender = locked.get(source);
             var target = Optional.ofNullable(locked.get(recipient)).orElseThrow(RecipientNotFoundException::new);
             return record(sender, sender.transfer(amount, target, correlationId, now()));
