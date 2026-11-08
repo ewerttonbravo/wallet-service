@@ -4,14 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import java.util.UUID;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.api.Test;
 
 class CorrelationIdTest {
 
-    private static final String SIXTY_FOUR = "a".repeat(64);
+    private static final String SIXTY_FOUR = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-";
+
+    @Test
+    void sixtyFourIsTheLongestAllowedLength() {
+        assertThat(SIXTY_FOUR).hasSize(64);
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"a", "Req-42_x.y:z", SIXTY_FOUR})
