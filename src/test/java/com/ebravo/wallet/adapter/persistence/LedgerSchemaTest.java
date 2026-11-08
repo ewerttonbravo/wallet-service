@@ -109,6 +109,21 @@ class LedgerSchemaTest {
     }
 
     @Test
+    void refusesTwoEntriesOfTheSameWalletInOneTransaction() {
+        var wallet = aWallet();
+
+        assertThatExceptionOfType(DataIntegrityViolationException.class)
+                .isThrownBy(() -> transaction.executeWithoutResult(_ -> {
+                    var id = UUID.randomUUID();
+                    insertTransaction(id);
+                    insertEntry(id, null, "-2.00", null);
+                    insertEntry(id, wallet, "1.00", "1.00");
+                    insertEntry(id, wallet, "1.00", "2.00");
+                }))
+                .withMessageContaining("uk_ledger_entry_wallet_per_transaction");
+    }
+
+    @Test
     void refusesANegativeWalletBalance() {
         var wallet = aWallet();
 

@@ -44,6 +44,19 @@ class LedgerTransactionTest {
                 .withMessage("Ledger entries must sum to zero, got 0.01");
     }
 
+    // A wallet's view of a transaction is its one entry; two would make its resulting balance ambiguous.
+    @Test
+    void rejectsTwoEntriesOnTheSameWallet() {
+        var entries = List.<LedgerEntry>of(
+                new ExternalEntry(money("-2.00")),
+                new WalletEntry(WALLET, money("1.00"), money("1.00")),
+                new WalletEntry(WALLET, money("1.00"), money("2.00")));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> transaction(entries))
+                .withMessage("A wallet can have at most one entry per ledger transaction");
+    }
+
     @Test
     void rejectsFewerThanTwoEntries() {
         var entries = List.<LedgerEntry>of(new WalletEntry(WALLET, money("10.00"), money("10.00")));
