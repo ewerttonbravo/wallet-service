@@ -80,6 +80,12 @@ class TransactionApiTest {
                 .bodyJson().isStrictlyEqualTo(deposit.getResponse().getContentAsString());
     }
 
+    // A transfer names its counterparty (TransferApiTest); money from outside the service has none.
+    @Test
+    void aDepositNamesNoCounterparty() {
+        assertThat(post(aWalletOwner(), DEPOSITS, amount("10.50"))).bodyJson().doesNotHavePath("$.counterpartyWalletId");
+    }
+
     @Test
     void recordsTheCorrelationIdItGeneratedWhenTheCallerSentNone() {
         var deposit = post(aWalletOwner(), DEPOSITS, amount("10.50"));

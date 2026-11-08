@@ -93,6 +93,26 @@ class LedgerConcurrencyTest {
         assertReconciles(bob);
     }
 
+    @Test
+    void concurrentTransfersNeverOverdrawTheSender() {
+        var alice = aWalletWith("100.00");
+        var bob = aWalletWith("5.00");
+        var bobWallet = wallets.get(bob).id();
+
+        var attempts = releasedTogether(IntStream.range(0, 32)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("10.00"), CORRELATION))
+                .toList());
+
+        assertThat(succeeded(attempts)).isEqualTo(10);
+        assertThat(attempts).filteredOn(it -> it.state() == Future.State.FAILED)
+                .hasSize(22)
+                .allMatch(it -> it.exceptionNow() instanceof InsufficientFundsException);
+        assertThat(wallets.get(alice).balance()).isEqualTo(Money.ZERO);
+        assertThat(wallets.get(bob).balance()).isEqualTo(money("105.00"));
+        assertReconciles(alice);
+        assertReconciles(bob);
+    }
+
     private OwnerId aWalletWith(String balance) {
         var owner = anOwner();
         wallets.open(owner);
