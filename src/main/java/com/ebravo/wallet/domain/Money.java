@@ -14,8 +14,11 @@ public record Money(BigDecimal amount) {
 
     public static final Currency CURRENCY = Currency.getInstance("BRL");
     public static final int SCALE = 2;
+    // Declared before the constants below, which the constructor checks against it.
+    private static final BigDecimal LARGEST = new BigDecimal("99999999999999999.99");
+
     public static final Money ZERO = new Money(BigDecimal.ZERO);
-    public static final Money MAX = new Money(new BigDecimal("99999999999999999.99"));
+    public static final Money MAX = new Money(LARGEST);
 
     public Money {
         Objects.requireNonNull(amount, "amount");
@@ -24,10 +27,9 @@ public record Money(BigDecimal amount) {
                     "Amount must have at most %d decimal places: %s".formatted(SCALE, amount.toPlainString()));
         }
         amount = amount.setScale(SCALE, RoundingMode.UNNECESSARY);
-        // MAX is null while it is being built itself, and it is within the bound.
-        if (MAX != null && amount.abs().compareTo(MAX.amount) > 0) {
+        if (amount.abs().compareTo(LARGEST) > 0) {
             throw new InvalidAmountException("Amount must not exceed %s in magnitude: %s"
-                    .formatted(MAX.amount.toPlainString(), amount.toPlainString()));
+                    .formatted(LARGEST.toPlainString(), amount.toPlainString()));
         }
     }
 
