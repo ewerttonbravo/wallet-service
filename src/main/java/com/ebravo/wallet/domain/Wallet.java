@@ -19,7 +19,7 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
 
     /** Money settled outside the service enters the wallet. */
     public Posting deposit(Money amount, CorrelationId correlationId, Instant at) {
-        requirePositive(amount);
+        amount.requirePositive();
         if (amount.isGreaterThan(Money.MAX.subtract(balance))) {
             throw new BalanceLimitExceededException();
         }
@@ -30,7 +30,7 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
 
     /** Money leaves the wallet to be settled outside the service; overdraft is not allowed. */
     public Posting withdraw(Money amount, CorrelationId correlationId, Instant at) {
-        requirePositive(amount);
+        amount.requirePositive();
         if (amount.isGreaterThan(balance)) {
             throw new InsufficientFundsException();
         }
@@ -42,11 +42,5 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
     private Posting post(TransactionType type, Money after, CorrelationId correlationId, Instant at, LedgerEntry... entries) {
         var transaction = new LedgerTransaction(TransactionId.newId(), type, List.of(entries), correlationId, at);
         return new Posting(new Wallet(id, owner, after, createdAt), transaction);
-    }
-
-    private static void requirePositive(Money amount) {
-        if (!amount.isPositive()) {
-            throw new InvalidAmountException("Amount must be positive: " + amount.amount().toPlainString());
-        }
     }
 }

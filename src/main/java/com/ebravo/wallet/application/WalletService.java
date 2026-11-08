@@ -42,10 +42,13 @@ public final class WalletService {
     }
 
     public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId) {
+        // Checked before the lock too, so a request that can never succeed does not wait for it.
+        amount.requirePositive();
         return post(owner, (wallet, at) -> wallet.deposit(amount, correlationId, at));
     }
 
     public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId) {
+        amount.requirePositive();
         return post(owner, (wallet, at) -> wallet.withdraw(amount, correlationId, at));
     }
 

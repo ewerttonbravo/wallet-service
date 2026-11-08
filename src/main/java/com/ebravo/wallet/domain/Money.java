@@ -43,6 +43,13 @@ public record Money(BigDecimal amount) {
         return new Money(amount.negate());
     }
 
+    /** Money moved by an operation must be above zero. */
+    public void requirePositive() {
+        if (!isPositive()) {
+            throw new InvalidAmountException("Amount must be positive: " + amount.toPlainString());
+        }
+    }
+
     public boolean isPositive() {
         return amount.signum() > 0;
     }
