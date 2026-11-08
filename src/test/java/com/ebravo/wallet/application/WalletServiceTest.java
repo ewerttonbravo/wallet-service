@@ -8,10 +8,13 @@ import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.Money;
+import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.RecipientNotFoundException;
+import com.ebravo.wallet.domain.SameWalletTransferException;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.TransactionNotFoundException;
 import com.ebravo.wallet.domain.TransactionType;
+import com.ebravo.wallet.domain.Wallet;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
 import com.ebravo.wallet.domain.WalletId;
 import com.ebravo.wallet.domain.WalletNotFoundException;
@@ -20,8 +23,11 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class WalletServiceTest {
@@ -185,6 +191,25 @@ class WalletServiceTest {
         assertThat(transactions.count).isEqualTo(2);
     }
 
+    @Test
+    void locksBothWalletsInIdOrderWhicheverWayMoneyMoves() {
+        var locks = new RecordingLocks(wallets);
+        var recordingService = new WalletService(locks, ledger, transactions, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
+        var alice = anOwner();
+        var bob = anOwner();
+        var aliceWallet = service.open(alice).id();
+        var bobWallet = service.open(bob).id();
+        service.deposit(alice, money("10.00"), CORRELATION);
+        service.deposit(bob, money("10.00"), CORRELATION);
+        var inOrder = Stream.of(aliceWallet, bobWallet).sorted().toList();
+
+        recordingService.transfer(alice, bobWallet, money("1.00"), CORRELATION);
+        assertThat(locks.taken).containsExactlyElementsOf(inOrder);
+        locks.taken.clear();
+        recordingService.transfer(bob, aliceWallet, money("1.00"), CORRELATION);
+        assertThat(locks.taken).containsExactlyElementsOf(inOrder);
+    }
+
     // The same owner can transfer to an existing wallet (above), so only the unknown id explains it.
     @Test
     void refusesATransferToAnUnknownWallet() {
@@ -198,6 +223,17 @@ class WalletServiceTest {
                 .withMessage("The recipient wallet does not exist");
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
         assertThat(ledgerSize()).isEqualTo(depositsOnly);
+    }
+
+    @Test
+    void refusesATransferToTheOwnersOwnWallet() {
+        var alice = anOwner();
+        var wallet = service.open(alice);
+        service.deposit(alice, money("25.00"), CORRELATION);
+
+        assertThatExceptionOfType(SameWalletTransferException.class)
+                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.50"), CORRELATION));
+        assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
     }
 
     @Test
@@ -280,6 +316,45 @@ class WalletServiceTest {
 
     private static Money money(String amount) {
         return new Money(new BigDecimal(amount));
+    }
+
+    /** Records which wallets are locked, in order, by either lock method. */
+    private static final class RecordingLocks implements WalletRepository {
+
+        private final WalletRepository delegate;
+        private final List<WalletId> taken = new ArrayList<>();
+
+        private RecordingLocks(WalletRepository delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean add(Wallet wallet) {
+            return delegate.add(wallet);
+        }
+
+        @Override
+        public Optional<Wallet> findByOwner(OwnerId owner) {
+            return delegate.findByOwner(owner);
+        }
+
+        @Override
+        public Optional<Wallet> lockByOwner(OwnerId owner) {
+            var wallet = delegate.lockByOwner(owner);
+            wallet.ifPresent(it -> taken.add(it.id()));
+            return wallet;
+        }
+
+        @Override
+        public Optional<Wallet> lockById(WalletId id) {
+            taken.add(id);
+            return delegate.lockById(id);
+        }
+
+        @Override
+        public void updateBalance(Wallet wallet) {
+            delegate.updateBalance(wallet);
+        }
     }
 
     private static final class CountingTransactions implements Transactions {
