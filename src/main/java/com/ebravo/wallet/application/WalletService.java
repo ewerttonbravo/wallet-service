@@ -5,6 +5,7 @@ import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Posting;
 import com.ebravo.wallet.domain.RecipientNotFoundException;
+import com.ebravo.wallet.domain.SameWalletTransferException;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.TransactionNotFoundException;
 import com.ebravo.wallet.domain.Wallet;
@@ -61,11 +62,15 @@ public final class WalletService {
     /** Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner sees it. */
     public WalletTransaction transfer(OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId) {
         amount.requirePositive();
+        // A wallet's id never changes, so it is read before the transaction, where no lock is held yet.
+        var source = get(owner).id();
+        if (source.equals(recipient)) {
+            throw new SameWalletTransferException();
+        }
         return transactions.inTransaction(() -> {
-            var source = get(owner).id();
             // Every transfer locks its wallets in id order: two opposing transfers queue for the first
             // lock instead of each holding the one the other waits for.
-            var locked = Stream.of(source, recipient).sorted().distinct()
+            var locked = Stream.of(source, recipient).sorted()
                     .flatMap(id -> wallets.lockById(id).stream())
                     .collect(Collectors.toMap(Wallet::id, Function.identity()));
             var sender = locked.get(source);
