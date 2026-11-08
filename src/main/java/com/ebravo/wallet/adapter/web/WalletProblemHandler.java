@@ -3,6 +3,7 @@ package com.ebravo.wallet.adapter.web;
 import com.ebravo.wallet.domain.BalanceLimitExceededException;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
+import com.ebravo.wallet.domain.RecipientNotFoundException;
 import com.ebravo.wallet.domain.SameWalletTransferException;
 import com.ebravo.wallet.domain.TransactionNotFoundException;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
@@ -26,6 +27,7 @@ class WalletProblemHandler {
             case BalanceLimitExceededException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InsufficientFundsException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InvalidAmountException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case RecipientNotFoundException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case SameWalletTransferException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case TransactionNotFoundException _ -> HttpStatus.NOT_FOUND;
             case WalletAlreadyExistsException _ -> HttpStatus.CONFLICT;

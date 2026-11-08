@@ -4,10 +4,12 @@ import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Posting;
+import com.ebravo.wallet.domain.RecipientNotFoundException;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.TransactionNotFoundException;
 import com.ebravo.wallet.domain.Wallet;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
+import com.ebravo.wallet.domain.WalletId;
 import com.ebravo.wallet.domain.WalletNotFoundException;
 import com.ebravo.wallet.domain.WalletTransaction;
 import java.time.Clock;
@@ -52,6 +54,16 @@ public final class WalletService {
         return post(owner, (wallet, at) -> wallet.withdraw(amount, correlationId, at));
     }
 
+    /** Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner sees it. */
+    public WalletTransaction transfer(OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId) {
+        amount.requirePositive();
+        return transactions.inTransaction(() -> {
+            var sender = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
+            var target = wallets.lockById(recipient).orElseThrow(RecipientNotFoundException::new);
+            return record(sender, sender.transfer(amount, target, correlationId, now()));
+        });
+    }
+
     /** Only the owner's own transactions are found: anyone else's is reported as missing. */
     public WalletTransaction transaction(OwnerId owner, TransactionId id) {
         return ledger.find(get(owner).id(), id).orElseThrow(TransactionNotFoundException::new);
@@ -61,11 +73,15 @@ public final class WalletService {
         return transactions.inTransaction(() -> {
             var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
             // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
-            var posting = operation.apply(wallet, now());
-            posting.wallets().forEach(wallets::updateBalance);
-            ledger.append(posting.transaction());
-            return posting.transaction().viewFor(wallet.id()).orElseThrow();
+            return record(wallet, operation.apply(wallet, now()));
         });
+    }
+
+    /** Stores every changed balance and the transaction that explains them, in the caller's transaction. */
+    private WalletTransaction record(Wallet acting, Posting posting) {
+        posting.wallets().forEach(wallets::updateBalance);
+        ledger.append(posting.transaction());
+        return posting.transaction().viewFor(acting.id()).orElseThrow();
     }
 
     // The database keeps microseconds; truncating makes what is returned equal to what is stored.
