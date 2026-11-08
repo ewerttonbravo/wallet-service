@@ -25,4 +25,8 @@ public final class InMemoryLedger implements Ledger {
     public boolean isEmpty() {
         return transactions.isEmpty();
     }
+
+    public int size() {
+        return transactions.size();
+    }
 }

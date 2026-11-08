@@ -8,10 +8,12 @@ import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.Money;
+import com.ebravo.wallet.domain.RecipientNotFoundException;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.TransactionNotFoundException;
 import com.ebravo.wallet.domain.TransactionType;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
+import com.ebravo.wallet.domain.WalletId;
 import com.ebravo.wallet.domain.WalletNotFoundException;
 import com.ebravo.wallet.domain.WalletTransaction;
 import java.math.BigDecimal;
@@ -153,6 +155,88 @@ class WalletServiceTest {
     }
 
     @Test
+    void transfersFromTheWalletOfTheOwnerToTheRecipient() {
+        var alice = anOwner();
+        var bob = anOwner();
+        var sender = service.open(alice);
+        var recipient = service.open(bob);
+        service.deposit(alice, money("25.00"), CORRELATION);
+
+        var transfer = service.transfer(alice, recipient.id(), money("10.50"), new CorrelationId("request-2"));
+
+        assertThat(transfer).usingRecursiveComparison().ignoringFields("id").isEqualTo(new WalletTransaction(
+                TransactionId.newId(), TransactionType.TRANSFER, money("-10.50"), money("14.50"),
+                Optional.of(recipient.id()), new CorrelationId("request-2"), NOW_IN_MICROS));
+        assertThat(service.get(alice).balance()).isEqualTo(money("14.50"));
+        assertThat(service.get(bob).balance()).isEqualTo(money("10.50"));
+        assertThat(ledger.find(sender.id(), transfer.id())).contains(transfer);
+        assertThat(ledger.find(recipient.id(), transfer.id())).map(WalletTransaction::amount).contains(money("10.50"));
+    }
+
+    @Test
+    void eachTransferRunsInOneTransaction() {
+        var alice = anOwner();
+        service.open(alice);
+        var recipient = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION);
+
+        service.transfer(alice, recipient.id(), money("10.50"), CORRELATION);
+
+        assertThat(transactions.count).isEqualTo(2);
+    }
+
+    // The same owner can transfer to an existing wallet (above), so only the unknown id explains it.
+    @Test
+    void refusesATransferToAnUnknownWallet() {
+        var alice = anOwner();
+        service.open(alice);
+        service.deposit(alice, money("25.00"), CORRELATION);
+        var depositsOnly = ledgerSize();
+
+        assertThatExceptionOfType(RecipientNotFoundException.class)
+                .isThrownBy(() -> service.transfer(alice, WalletId.newId(), money("10.50"), CORRELATION))
+                .withMessage("The recipient wallet does not exist");
+        assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
+        assertThat(ledgerSize()).isEqualTo(depositsOnly);
+    }
+
+    @Test
+    void refusesATransferFromAnOwnerWithoutWallet() {
+        var recipient = service.open(anOwner());
+
+        assertThatExceptionOfType(WalletNotFoundException.class)
+                .isThrownBy(() -> service.transfer(anOwner(), recipient.id(), money("10.50"), CORRELATION));
+        assertThat(service.get(recipient.owner()).balance()).isEqualTo(Money.ZERO);
+        assertThat(ledger.isEmpty()).isTrue();
+    }
+
+    @Test
+    void aRefusedTransferChangesNeitherBalanceNorTheLedger() {
+        var alice = anOwner();
+        service.open(alice);
+        var recipient = service.open(anOwner());
+
+        assertThatExceptionOfType(InsufficientFundsException.class)
+                .isThrownBy(() -> service.transfer(alice, recipient.id(), money("0.01"), CORRELATION));
+
+        assertThat(service.get(alice).balance()).isEqualTo(Money.ZERO);
+        assertThat(service.get(recipient.owner()).balance()).isEqualTo(Money.ZERO);
+        assertThat(ledger.isEmpty()).isTrue();
+    }
+
+    // A valid transfer opens one transaction (above); a hopeless one must not even take the locks.
+    @Test
+    void refusesANonPositiveTransferBeforeTouchingTheWallets() {
+        var alice = anOwner();
+        service.open(alice);
+        var recipient = service.open(anOwner());
+
+        assertThatExceptionOfType(InvalidAmountException.class)
+                .isThrownBy(() -> service.transfer(alice, recipient.id(), Money.ZERO, CORRELATION));
+        assertThat(transactions.count).isZero();
+    }
+
+    @Test
     void findsATransactionOfTheOwner() {
         var owner = anOwner();
         service.open(owner);
@@ -188,6 +272,10 @@ class WalletServiceTest {
     void reportsATransactionLookupWithoutWallet() {
         assertThatExceptionOfType(WalletNotFoundException.class)
                 .isThrownBy(() -> service.transaction(anOwner(), TransactionId.newId()));
+    }
+
+    private long ledgerSize() {
+        return ledger.size();
     }
 
     private static Money money(String amount) {
