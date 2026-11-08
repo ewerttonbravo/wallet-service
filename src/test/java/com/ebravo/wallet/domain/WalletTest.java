@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class WalletTest {
 
     private static final OwnerId OWNER = new OwnerId("owner");
+    private static final OwnerId RECIPIENT = new OwnerId("recipient");
     private static final Instant NOW = Instant.parse("2026-11-07T14:53:35.123456Z");
     private static final Instant LATER = Instant.parse("2026-11-08T09:00:00.654321Z");
     private static final CorrelationId CORRELATION = new CorrelationId("request-1");
@@ -128,8 +129,84 @@ class WalletTest {
                 .withMessage("The balance would exceed 99999999999999999.99");
     }
 
+    @Test
+    void transferMovesMoneyBetweenTheWalletsAndPostsABalancedTransaction() {
+        var sender = withBalance("25.00");
+        var recipient = withBalance("5.00", RECIPIENT);
+
+        var posting = sender.transfer(money("10.50"), recipient, CORRELATION, LATER);
+
+        assertThat(posting.wallets()).containsExactly(
+                new Wallet(sender.id(), OWNER, money("14.50"), NOW),
+                new Wallet(recipient.id(), RECIPIENT, money("15.50"), NOW));
+        var transaction = posting.transaction();
+        assertThat(transaction.type()).isEqualTo(TransactionType.TRANSFER);
+        assertThat(transaction.entries()).containsExactly(
+                new WalletEntry(sender.id(), money("-10.50"), money("14.50")),
+                new WalletEntry(recipient.id(), money("10.50"), money("15.50")));
+        assertThat(transaction.correlationId()).isEqualTo(CORRELATION);
+        assertThat(transaction.createdAt()).isEqualTo(LATER);
+    }
+
+    @Test
+    void transferringTheWholeBalanceLeavesZero() {
+        var posting = withBalance("25.00").transfer(money("25.00"), withBalance("0.00", RECIPIENT), CORRELATION, LATER);
+
+        assertThat(posting.wallets().getFirst().balance()).isEqualTo(Money.ZERO);
+    }
+
+    // The whole balance can be transferred (above), so only the extra cent explains the rejection.
+    @Test
+    void rejectsATransferAboveTheBalance() {
+        var sender = withBalance("25.00");
+
+        assertThatExceptionOfType(InsufficientFundsException.class)
+                .isThrownBy(() -> sender.transfer(money("25.01"), withBalance("0.00", RECIPIENT), CORRELATION, LATER))
+                .withMessage("The balance is not enough for this transfer");
+    }
+
+    // A negative amount would otherwise move money from the recipient to the sender.
+    @ParameterizedTest
+    @ValueSource(strings = {"0.00", "-0.01"})
+    void rejectsATransferThatIsNotPositive(String amount) {
+        assertThatExceptionOfType(InvalidAmountException.class)
+                .isThrownBy(() -> withBalance("25.00").transfer(money(amount), withBalance("0.00", RECIPIENT), CORRELATION, LATER))
+                .withMessage("Amount must be positive: " + amount);
+    }
+
+    // The same amount moves between two different wallets (above), so only the shared id explains it.
+    @Test
+    void rejectsATransferToTheSameWallet() {
+        var wallet = withBalance("25.00");
+
+        assertThatExceptionOfType(SameWalletTransferException.class)
+                .isThrownBy(() -> wallet.transfer(money("10.50"), wallet, CORRELATION, LATER))
+                .withMessage("A wallet cannot transfer to itself");
+    }
+
+    @Test
+    void acceptsATransferThatTakesTheRecipientToTheLargestStorableBalance() {
+        var posting = withBalance("10.00").transfer(money("10.00"), withBalance("99999999999999989.99", RECIPIENT), CORRELATION, LATER);
+
+        assertThat(posting.wallets().getLast().balance()).isEqualTo(Money.MAX);
+    }
+
+    @Test
+    void rejectsATransferThatWouldTakeTheRecipientPastTheLargestStorableBalance() {
+        var sender = withBalance("10.01");
+        var recipient = withBalance("99999999999999989.99", RECIPIENT);
+
+        assertThatExceptionOfType(BalanceLimitExceededException.class)
+                .isThrownBy(() -> sender.transfer(money("10.01"), recipient, CORRELATION, LATER))
+                .withMessage("The recipient's balance would exceed 99999999999999999.99");
+    }
+
     private static Wallet withBalance(String balance) {
-        return new Wallet(WalletId.newId(), OWNER, money(balance), NOW);
+        return withBalance(balance, OWNER);
+    }
+
+    private static Wallet withBalance(String balance, OwnerId owner) {
+        return new Wallet(WalletId.newId(), owner, money(balance), NOW);
     }
 
     private static Money money(String amount) {
