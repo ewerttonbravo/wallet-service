@@ -1,5 +1,7 @@
 package com.ebravo.wallet.adapter.web;
 
+import com.ebravo.wallet.domain.BalanceLimitExceededException;
+import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.WalletAlreadyExistsException;
 import com.ebravo.wallet.domain.WalletException;
@@ -16,6 +18,8 @@ class WalletProblemHandler {
     @ExceptionHandler
     ProblemDetail handle(WalletException exception) {
         var status = switch (exception) {
+            case BalanceLimitExceededException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case InsufficientFundsException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InvalidAmountException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case WalletAlreadyExistsException _ -> HttpStatus.CONFLICT;
             case WalletNotFoundException _ -> HttpStatus.NOT_FOUND;
