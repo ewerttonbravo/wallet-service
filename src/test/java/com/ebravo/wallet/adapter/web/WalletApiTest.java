@@ -75,7 +75,7 @@ class WalletApiTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/wallets/me", "/wallets/me/balance"})
+    @ValueSource(strings = {"/wallets/me", "/wallets/me/balance", "/wallets/me/balance?at=2026-01-01T00:00:00Z"})
     void reportsAUserWithoutWallet(String path) {
         assertThat(mvc.get().uri(path).with(tokenOf(anOwner())))
                 .hasStatus(HttpStatus.NOT_FOUND)
@@ -86,7 +86,7 @@ class WalletApiTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"POST, /wallets", "GET, /wallets/me", "GET, /wallets/me/balance"})
+    @CsvSource({"POST, /wallets", "GET, /wallets/me", "GET, /wallets/me/balance", "GET, /wallets/me/balance?at=2026-01-01T00:00:00Z"})
     void rejectsRequestsWithoutToken(String method, String path) {
         var result = mvc.method(HttpMethod.valueOf(method)).uri(path).exchange();
 

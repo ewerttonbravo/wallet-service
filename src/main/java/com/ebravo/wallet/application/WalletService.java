@@ -54,6 +54,17 @@ public final class WalletService {
         return wallets.findByOwner(owner).orElseThrow(WalletNotFoundException::new);
     }
 
+    /**
+     * The balance after the wallet's last posting at or before the instant. Entries are stamped at the
+     * microsecond, so the instant is read at the microsecond it falls in.
+     */
+    public Money balanceAt(OwnerId owner, Instant at) {
+        var wallet = get(owner);
+        var instant = at.truncatedTo(ChronoUnit.MICROS);
+        wallet.requireBalanceKnownAt(instant, now());
+        return ledger.balanceAt(wallet.id(), instant).orElse(Money.ZERO);
+    }
+
     /** A retry with the key of a deposit already posted gets that deposit back, and posts nothing. */
     public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         // Checked before the lock too, so a request that can never succeed does not wait for it.

@@ -22,6 +22,7 @@ import com.ebravo.wallet.domain.WalletId;
 import com.ebravo.wallet.domain.WalletTransaction;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -128,6 +129,11 @@ class PostingAtomicityTest {
         @Override
         public TransactionPage history(WalletId wallet, PageRequest page) {
             return delegate.history(wallet, page);
+        }
+
+        @Override
+        public Optional<Money> balanceAt(WalletId wallet, Instant at) {
+            return delegate.balanceAt(wallet, at);
         }
     }
 }

@@ -5,6 +5,10 @@ import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.WalletId;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
@@ -26,6 +30,9 @@ final class RequestFields {
     private static final Pattern CANONICAL_UUID = Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}");
     // Ten digits hold every int; parsing decides whether the value fits.
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d{1,10}");
+    // Bounds the work done on untrusted input; the longest instant the parser accepts is shorter.
+    private static final int MAX_INSTANT_LENGTH = 64;
+    private static final String INSTANT_RULE = "at must be an ISO-8601 instant with offset, such as \"2026-11-09T10:00:00Z\"";
     private static final int FIRST_PAGE = 0;
     private static final int DEFAULT_PAGE_SIZE = 20;
 
@@ -56,6 +63,19 @@ final class RequestFields {
         } catch (IllegalArgumentException invalid) {
             // The domain's message is fixed text: the rejected value is never echoed back.
             throw malformed(invalid.getMessage());
+        }
+    }
+
+    /** The offset is required: without one, the same text names a different instant in every time zone. */
+    static Instant instant(String at) {
+        if (at.length() > MAX_INSTANT_LENGTH) {
+            throw malformed(INSTANT_RULE);
+        }
+        try {
+            return OffsetDateTime.parse(at, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant();
+        } catch (DateTimeParseException invalid) {
+            // Its message quotes the text it could not parse.
+            throw malformed(INSTANT_RULE);
         }
     }
 

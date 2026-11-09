@@ -16,6 +16,7 @@ import com.ebravo.wallet.domain.WalletTransaction;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -121,6 +122,23 @@ class JdbcLedger implements Ledger {
                     }
                     return new TransactionPage(transactions, page, total);
                 });
+    }
+
+    /** Walks the wallet's entries back from the newest, on its index, to the first one not after the instant. */
+    @Override
+    public Optional<Money> balanceAt(WalletId wallet, Instant at) {
+        return jdbc.sql("""
+                        select e.balance_after
+                        from ledger_entry e
+                        join ledger_transaction t on t.id = e.transaction_id
+                        where e.wallet_id = :wallet and t.created_at <= :at
+                        order by e.id desc
+                        limit 1
+                        """)
+                .param("wallet", wallet.value())
+                .param("at", at.atOffset(ZoneOffset.UTC))
+                .query((rs, _) -> new Money(rs.getBigDecimal("balance_after")))
+                .optional();
     }
 
     private static WalletTransaction walletTransaction(ResultSet rs) throws SQLException {

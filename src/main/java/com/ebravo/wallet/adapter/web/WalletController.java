@@ -43,9 +43,14 @@ class WalletController {
         return WalletResponse.of(wallets.get(ownerOf(token)));
     }
 
+    /** The current balance, or with {@code at} the balance at that past instant. */
     @GetMapping("/me/balance")
-    BalanceResponse balance(@AuthenticationPrincipal Jwt token) {
-        return BalanceResponse.of(wallets.get(ownerOf(token)).balance());
+    BalanceResponse balance(@AuthenticationPrincipal Jwt token, @RequestParam(required = false) String at) {
+        var owner = ownerOf(token);
+        if (at == null) {
+            return BalanceResponse.of(wallets.get(owner).balance());
+        }
+        return BalanceResponse.of(wallets.balanceAt(owner, RequestFields.instant(at)));
     }
 
     @PostMapping("/me/deposits")

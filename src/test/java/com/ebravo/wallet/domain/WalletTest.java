@@ -2,10 +2,12 @@ package com.ebravo.wallet.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -199,6 +201,34 @@ class WalletTest {
         assertThatExceptionOfType(BalanceLimitExceededException.class)
                 .isThrownBy(() -> sender.transfer(money("10.01"), recipient, CORRELATION, LATER))
                 .withMessage("The recipient's balance would exceed 99999999999999999.99");
+    }
+
+    @Test
+    void knowsTheBalanceFromTheInstantItWasOpenedUntilNow() {
+        var wallet = Wallet.open(OWNER, NOW);
+
+        assertThatNoException().isThrownBy(() -> wallet.requireBalanceKnownAt(NOW, LATER));
+        assertThatNoException().isThrownBy(() -> wallet.requireBalanceKnownAt(LATER, LATER));
+    }
+
+    // The opening instant itself is known (above), so only the microsecond before it is refused.
+    @Test
+    void refusesAnInstantBeforeItWasOpened() {
+        var wallet = Wallet.open(OWNER, NOW);
+
+        assertThatExceptionOfType(InstantOutOfRangeException.class)
+                .isThrownBy(() -> wallet.requireBalanceKnownAt(NOW.minus(1, ChronoUnit.MICROS), LATER))
+                .withMessage("The wallet did not exist at that instant");
+    }
+
+    // Now itself is known (above), so only the microsecond after it is refused.
+    @Test
+    void refusesAnInstantInTheFuture() {
+        var wallet = Wallet.open(OWNER, NOW);
+
+        assertThatExceptionOfType(InstantOutOfRangeException.class)
+                .isThrownBy(() -> wallet.requireBalanceKnownAt(LATER.plus(1, ChronoUnit.MICROS), LATER))
+                .withMessage("The instant is in the future");
     }
 
     private static Wallet withBalance(String balance) {

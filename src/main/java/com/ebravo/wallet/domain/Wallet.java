@@ -59,6 +59,16 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
         return new Posting(List.of(withBalance(after), recipient.withBalance(recipientAfter)), transaction);
     }
 
+    /** A wallet has a balance from the instant it was opened until now, both included. */
+    public void requireBalanceKnownAt(Instant at, Instant now) {
+        if (at.isAfter(now)) {
+            throw InstantOutOfRangeException.inTheFuture();
+        }
+        if (at.isBefore(createdAt)) {
+            throw InstantOutOfRangeException.beforeTheWallet();
+        }
+    }
+
     private Posting post(TransactionType type, Money after, CorrelationId correlationId, Instant at, LedgerEntry... entries) {
         var transaction = new LedgerTransaction(TransactionId.newId(), type, List.of(entries), correlationId, at);
         return new Posting(List.of(withBalance(after)), transaction);

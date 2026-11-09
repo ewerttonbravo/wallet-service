@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The balance at a past instant comes next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. Running the service itself in Docker Compose comes next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -88,6 +88,13 @@ List the wallet's transactions, newest first, a page at a time (`page` from 0, `
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/wallets/me/transactions?size=2"
+```
+
+Read the balance at a past instant with `at`, an ISO-8601 instant with offset, here the moment of the oldest transaction on the first page. `--data-urlencode` keeps a `+` offset intact, which a raw query string would read as a space. An instant before the wallet was opened or in the future is refused with `422`:
+
+```sh
+AT=$(curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/wallets/me/transactions" | jq -r '.transactions[-1].createdAt')
+curl -G -H "Authorization: Bearer $TOKEN" --data-urlencode "at=$AT" http://localhost:8080/wallets/me/balance
 ```
 
 Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.

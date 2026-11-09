@@ -12,6 +12,7 @@ import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.Wallet;
 import com.ebravo.wallet.domain.WalletTransaction;
 import java.math.BigDecimal;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -177,6 +178,63 @@ public interface LedgerContract {
 
         assertThat(page.transactions()).isEmpty();
         assertThat(page.total()).isZero();
+    }
+
+    // Each instant gives another answer, so the filter and its inclusive end are both pinned.
+    @Test
+    default void findsTheBalanceAfterTheLastEntryAtOrBeforeAnInstant() {
+        var wallet = aWallet();
+        postings(wallet, 3);
+
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(2).minus(1, ChronoUnit.MICROS))).contains(money("1.00"));
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(2))).contains(money("3.00"));
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(3))).contains(money("6.00"));
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(60))).contains(money("6.00"));
+    }
+
+    @Test
+    default void findsNoBalanceBeforeTheWalletsFirstEntry() {
+        var wallet = aWallet();
+        postings(wallet, 1);
+
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(1).minus(1, ChronoUnit.MICROS))).isEmpty();
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(1))).contains(money("1.00"));
+    }
+
+    // The stranger's later, larger posting is found for the stranger, so it is not missing by accident.
+    @Test
+    default void findsTheBalanceOfTheWalletOnly() {
+        var wallet = aWallet();
+        var stranger = aWallet();
+        postings(wallet, 1);
+        append(stranger.deposit(money("50.00"), CORRELATION, NOW.plusSeconds(2)).transaction());
+
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(3))).contains(money("1.00"));
+        assertThat(ledger().balanceAt(stranger.id(), NOW.plusSeconds(3))).contains(money("50.00"));
+    }
+
+    @Test
+    default void findsEachSideOfATransferWithItsOwnBalance() {
+        var sender = aWallet();
+        var recipient = aWallet();
+        var deposit = sender.deposit(money("10.50"), CORRELATION, NOW);
+        append(deposit.transaction());
+        append(deposit.wallets().getFirst()
+                .transfer(money("4.00"), recipient, new CorrelationId("request-2"), NOW.plusSeconds(1)).transaction());
+
+        assertThat(ledger().balanceAt(sender.id(), NOW.plusSeconds(1))).contains(money("6.50"));
+        assertThat(ledger().balanceAt(recipient.id(), NOW.plusSeconds(1))).contains(money("4.00"));
+    }
+
+    // Timestamps can tie; posting order cannot. The first deposit alone would answer 1.00.
+    @Test
+    default void breaksATieAtTheSameInstantByPostingOrder() {
+        var wallet = aWallet();
+        var first = wallet.deposit(money("1.00"), CORRELATION, NOW.plusSeconds(1));
+        append(first.transaction());
+        append(first.wallets().getFirst().deposit(money("2.00"), CORRELATION, NOW.plusSeconds(1)).transaction());
+
+        assertThat(ledger().balanceAt(wallet.id(), NOW.plusSeconds(1))).contains(money("3.00"));
     }
 
     /** Deposits of 1.00, 2.00, … appended oldest first, each a second after the previous one. */
