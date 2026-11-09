@@ -9,6 +9,7 @@ import com.ebravo.wallet.domain.BalanceLimitExceededException;
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.IdempotencyKeyReusedException;
+import com.ebravo.wallet.domain.InstantOutOfRangeException;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.Money;
@@ -27,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +40,8 @@ class WalletServiceTest {
 
     private static final Instant NOW_IN_NANOS = Instant.parse("2026-11-07T14:53:35.123456789Z");
     private static final Instant NOW_IN_MICROS = Instant.parse("2026-11-07T14:53:35.123456Z");
+    private static final Instant ONE_SECOND_LATER = NOW_IN_MICROS.plusSeconds(1);
+    private static final Instant TWO_SECONDS_LATER = NOW_IN_MICROS.plusSeconds(2);
     private static final CorrelationId CORRELATION = new CorrelationId("request-1");
 
     private final WalletRepository wallets = new InMemoryWalletRepository();
@@ -569,6 +573,73 @@ class WalletServiceTest {
     void reportsAListingWithoutWallet() {
         assertThatExceptionOfType(WalletNotFoundException.class)
                 .isThrownBy(() -> service.transactions(anOwner(), new PageRequest(0, 20)));
+    }
+
+    // The microsecond before the withdrawal and its own instant give different answers.
+    @Test
+    void reportsTheBalanceAfterTheLastPostingAtOrBeforeTheInstant() {
+        var owner = anOwner();
+        service.open(owner);
+        serviceAt(ONE_SECOND_LATER).deposit(owner, money("10.50"), CORRELATION, aKey());
+        var later = serviceAt(TWO_SECONDS_LATER);
+        later.withdraw(owner, money("0.50"), CORRELATION, aKey());
+
+        assertThat(later.balanceAt(owner, TWO_SECONDS_LATER.minus(1, ChronoUnit.MICROS))).isEqualTo(money("10.50"));
+        assertThat(later.balanceAt(owner, TWO_SECONDS_LATER)).isEqualTo(money("10.00"));
+    }
+
+    // The deposit's own instant shows the deposit, so zero is the balance before it, not a missing read.
+    @Test
+    void reportsZeroFromTheOpeningUntilTheFirstPosting() {
+        var owner = anOwner();
+        service.open(owner);
+        var later = serviceAt(ONE_SECOND_LATER);
+        later.deposit(owner, money("10.50"), CORRELATION, aKey());
+
+        assertThat(later.balanceAt(owner, NOW_IN_MICROS)).isEqualTo(Money.ZERO);
+        assertThat(later.balanceAt(owner, ONE_SECOND_LATER)).isEqualTo(money("10.50"));
+    }
+
+    @Test
+    void refusesAnInstantBeforeTheWallet() {
+        var owner = anOwner();
+        service.open(owner);
+
+        assertThatExceptionOfType(InstantOutOfRangeException.class)
+                .isThrownBy(() -> service.balanceAt(owner, NOW_IN_MICROS.minus(1, ChronoUnit.MICROS)))
+                .withMessage("The wallet did not exist at that instant");
+    }
+
+    @Test
+    void refusesAnInstantAfterNow() {
+        var owner = anOwner();
+        service.open(owner);
+
+        assertThatExceptionOfType(InstantOutOfRangeException.class)
+                .isThrownBy(() -> service.balanceAt(owner, NOW_IN_MICROS.plus(1, ChronoUnit.MICROS)))
+                .withMessage("The instant is in the future");
+    }
+
+    // Now is read at the microsecond, as the database stores it: the clock's own instant, with its
+    // nanoseconds, is the current microsecond, not the future, and it includes what was posted in it.
+    @Test
+    void readsAnInstantAtTheMicrosecondItFallsIn() {
+        var owner = anOwner();
+        service.open(owner);
+        service.deposit(owner, money("10.50"), CORRELATION, aKey());
+
+        assertThat(service.balanceAt(owner, NOW_IN_NANOS)).isEqualTo(money("10.50"));
+    }
+
+    @Test
+    void reportsAnOwnerWithoutWalletForAPastBalance() {
+        assertThatExceptionOfType(WalletNotFoundException.class)
+                .isThrownBy(() -> service.balanceAt(anOwner(), NOW_IN_MICROS));
+    }
+
+    /** The same wallets and ledger, with the clock at another instant. */
+    private WalletService serviceAt(Instant now) {
+        return new WalletService(wallets, ledger, keys, transactions, Clock.fixed(now, ZoneOffset.UTC));
     }
 
     private static Money money(String amount) {
