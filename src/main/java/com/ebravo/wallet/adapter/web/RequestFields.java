@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.web;
 
+import com.ebravo.wallet.application.PageRequest;
 import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.WalletId;
@@ -22,6 +23,10 @@ final class RequestFields {
     private static final int MAX_AMOUNT_LENGTH = 32;
     private static final Pattern PLAIN_DECIMAL = Pattern.compile("-?\\d+(\\.\\d+)?");
     // UUID.fromString also accepts shortened forms such as "1-1-1-1-1"; wallet ids are written in full.
+    // Ten digits hold every int; parsing decides whether the value fits.
+    private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d{1,10}");
+    private static final int FIRST_PAGE = 0;
+    private static final int DEFAULT_PAGE_SIZE = 20;
     private static final Pattern CANONICAL_UUID = Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}");
 
     private RequestFields() {
@@ -51,6 +56,31 @@ final class RequestFields {
         } catch (IllegalArgumentException invalid) {
             // The domain's message is fixed text: the rejected value is never echoed back.
             throw malformed(invalid.getMessage());
+        }
+    }
+
+    /** Absent parameters take the first page of {@value #DEFAULT_PAGE_SIZE}; the details never echo the value sent. */
+    static PageRequest pageRequest(String page, String size) {
+        var number = wholeNumber(page, FIRST_PAGE, PageRequest.PAGE_RULE);
+        var length = wholeNumber(size, DEFAULT_PAGE_SIZE, PageRequest.SIZE_RULE);
+        try {
+            return new PageRequest(number, length);
+        } catch (IllegalArgumentException outOfBounds) {
+            throw malformed(outOfBounds.getMessage());
+        }
+    }
+
+    private static int wholeNumber(String value, int absent, String rule) {
+        if (value == null) {
+            return absent;
+        }
+        if (!WHOLE_NUMBER.matcher(value).matches()) {
+            throw malformed(rule);
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException tooLarge) {
+            throw malformed(rule);
         }
     }
 
