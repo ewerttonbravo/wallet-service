@@ -5,9 +5,9 @@ package com.ebravo.wallet.domain;
  * such as the HTTP layer, is forced by the compiler to handle each new one.
  */
 public abstract sealed class WalletException extends RuntimeException
-        permits BalanceLimitExceededException, IdempotencyKeyReusedException, InsufficientFundsException, InvalidAmountException,
-                RecipientNotFoundException, SameWalletTransferException, TransactionNotFoundException, WalletAlreadyExistsException,
-                WalletNotFoundException {
+        permits BalanceLimitExceededException, IdempotencyKeyReusedException, InstantOutOfRangeException, InsufficientFundsException,
+                InvalidAmountException, RecipientNotFoundException, SameWalletTransferException, TransactionNotFoundException,
+                WalletAlreadyExistsException, WalletNotFoundException {
 
     protected WalletException(String message) {
         super(message);
