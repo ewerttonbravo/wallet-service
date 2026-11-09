@@ -21,8 +21,9 @@ public interface Ledger {
     TransactionPage history(WalletId wallet, PageRequest page);
 
     /**
-     * The wallet's balance after its last entry recorded at or before the instant; of entries with
-     * the same timestamp, the last posted.
+     * The wallet's balance after the last posted of its entries recorded at or before the instant.
+     * Posting order, not the timestamp, decides which is last: timestamps can tie, and a clock that
+     * steps back could stamp a later posting earlier.
      *
      * @return empty when the wallet had no entry yet
      */
