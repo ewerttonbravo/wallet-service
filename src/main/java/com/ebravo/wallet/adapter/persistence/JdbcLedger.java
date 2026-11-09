@@ -13,9 +13,12 @@ import com.ebravo.wallet.domain.TransactionType;
 import com.ebravo.wallet.domain.WalletEntry;
 import com.ebravo.wallet.domain.WalletId;
 import com.ebravo.wallet.domain.WalletTransaction;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -77,20 +80,55 @@ class JdbcLedger implements Ledger {
                         """)
                 .param("id", id.value())
                 .param("wallet", wallet.value())
-                .query((rs, _) -> new WalletTransaction(
-                        new TransactionId(rs.getObject("id", UUID.class)),
-                        TransactionType.valueOf(rs.getString("type")),
-                        new Money(rs.getBigDecimal("amount")),
-                        new Money(rs.getBigDecimal("balance_after")),
-                        Optional.ofNullable(rs.getObject("counterparty", UUID.class)).map(WalletId::new),
-                        new CorrelationId(rs.getString("correlation_id")),
-                        rs.getObject("created_at", OffsetDateTime.class).toInstant()))
+                .query((rs, _) -> walletTransaction(rs))
                 .optional();
     }
 
+    /**
+     * One statement, so the total and the page come from the same snapshot even while postings
+     * commit. A page past the end still yields the count row, with no transaction on it. The wallet
+     * has one entry per transaction, whose identity key is the order it was posted in.
+     */
     @Override
     public TransactionPage history(WalletId wallet, PageRequest page) {
-        throw new UnsupportedOperationException("not yet");
+        var rows = jdbc.sql("""
+                        select c.total, p.*
+                        from (select count(*) as total from ledger_entry where wallet_id = :wallet) c
+                        left join lateral (
+                            select e.id as entry_id, t.id, t.type, t.correlation_id, t.created_at, e.amount,
+                                   e.balance_after, other.wallet_id as counterparty
+                            from ledger_entry e
+                            join ledger_transaction t on t.id = e.transaction_id
+                            left join ledger_entry other
+                                on other.transaction_id = e.transaction_id and other.wallet_id <> e.wallet_id
+                            where e.wallet_id = :wallet
+                            order by e.id desc
+                            offset :offset limit :size) p on true
+                        -- The join does not promise to keep the order of the lateral subquery.
+                        order by p.entry_id desc
+                        """)
+                .param("wallet", wallet.value())
+                .param("offset", page.offset())
+                .param("size", page.size())
+                .query((rs, _) -> new HistoryRow(
+                        rs.getLong("total"), rs.getObject("id") == null ? null : walletTransaction(rs)))
+                .list();
+        var transactions = rows.stream().map(HistoryRow::transaction).filter(Objects::nonNull).toList();
+        return new TransactionPage(transactions, page, rows.getFirst().total());
+    }
+
+    private static WalletTransaction walletTransaction(ResultSet rs) throws SQLException {
+        return new WalletTransaction(
+                new TransactionId(rs.getObject("id", UUID.class)),
+                TransactionType.valueOf(rs.getString("type")),
+                new Money(rs.getBigDecimal("amount")),
+                new Money(rs.getBigDecimal("balance_after")),
+                Optional.ofNullable(rs.getObject("counterparty", UUID.class)).map(WalletId::new),
+                new CorrelationId(rs.getString("correlation_id")),
+                rs.getObject("created_at", OffsetDateTime.class).toInstant());
+    }
+
+    private record HistoryRow(long total, WalletTransaction transaction) {
     }
 
     private record EntryRow(UUID wallet, Money amount, Money balanceAfter) {
