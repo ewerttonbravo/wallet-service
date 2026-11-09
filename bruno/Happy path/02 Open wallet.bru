@@ -1,0 +1,21 @@
+meta {
+  name: Open wallet
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{api}}/wallets
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+tests {
+  test("the user has a wallet (opened now, or before)", function () {
+    expect([201, 409]).to.include(res.getStatus());
+  });
+}

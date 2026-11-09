@@ -1,0 +1,30 @@
+meta {
+  name: Deposit without idempotency key
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "amount": "1.00"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.detail: eq "Idempotency-Key header is required"
+}
+
+docs {
+  The same deposit with a key is accepted (05 Deposit), so only the missing key explains the refusal.
+}

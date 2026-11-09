@@ -1,0 +1,35 @@
+meta {
+  name: Transfer to own wallet
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{api}}/wallets/me/transfers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: bruno-own-wallet
+}
+
+body:json {
+  {
+    "recipientWalletId": "{{walletId}}",
+    "amount": "1.00"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "A wallet cannot transfer to itself"
+}
+
+docs {
+  The key is fixed: a refused request keeps no key, so it stays free run after run.
+}

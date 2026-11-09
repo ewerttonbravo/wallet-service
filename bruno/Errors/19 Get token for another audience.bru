@@ -1,0 +1,44 @@
+meta {
+  name: Get token for another audience
+  type: http
+  seq: 19
+}
+
+post {
+  url: {{issuer}}/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: {{user}}
+  client_secret: any
+  scope: another-service
+}
+
+assert {
+  res.status: eq 200
+  res.body.access_token: isString
+}
+
+tests {
+  test("is a token of the trusted issuer, for another audience", function () {
+    // The payload of the JWT, base64url without padding; the sandbox's Buffer reads only base64.
+    function claims(token) {
+      const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(Buffer.from(payload, "base64").toString());
+    }
+    const token = claims(res.getBody().access_token);
+    expect(token.iss).to.equal(bru.getEnvVar("issuer"));
+    expect([].concat(token.aud)).to.deep.equal(["another-service"]);
+  });
+}
+
+script:post-response {
+  bru.setVar("otherAudienceToken", res.getBody().access_token);
+}
+
+docs {
+  The trusted issuer and the same user as 01 Get token: only the audience differs.
+}

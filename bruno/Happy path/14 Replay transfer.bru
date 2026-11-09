@@ -1,0 +1,48 @@
+meta {
+  name: Replay transfer
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{api}}/wallets/me/transfers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{transferKey}}
+}
+
+body:json {
+  {
+    "recipientWalletId": "{{recipientWalletId}}",
+    "amount": "20.00"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq "TRANSFER"
+  res.body.amount: eq "-20.00"
+  res.body.counterpartyWalletId: eq {{recipientWalletId}}
+}
+
+tests {
+  test("returns the transfer 13 posted", function () {
+    expect(res.getBody().id).to.equal(bru.getVar("transferId"));
+    expect(res.getHeader("location")).to.equal("/wallets/me/transactions/" + bru.getVar("transferId"));
+  });
+
+  test("with the balance 13 left: nothing was transferred again", function () {
+    expect(res.getBody().balance).to.equal(bru.getVar("balance"));
+  });
+}
+
+docs {
+  The same key, recipient and amount as 13 Transfer: the original comes back and no money moves.
+}

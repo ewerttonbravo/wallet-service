@@ -1,0 +1,27 @@
+meta {
+  name: Get token for another user
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{issuer}}/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: {{otherUser}}
+  client_secret: any
+  scope: {{audience}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.access_token: isString
+}
+
+script:post-response {
+  bru.setVar("otherToken", res.getBody().access_token);
+}

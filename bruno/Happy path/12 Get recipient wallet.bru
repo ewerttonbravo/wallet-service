@@ -1,0 +1,24 @@
+meta {
+  name: Get recipient wallet
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{api}}/wallets/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{otherToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  // The recipient shares this id with the sender, like an account number.
+  bru.setVar("recipientWalletId", res.getBody().id);
+}

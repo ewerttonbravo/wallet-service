@@ -1,0 +1,35 @@
+meta {
+  name: Reused idempotency key
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{depositKey}}
+}
+
+body:json {
+  {
+    "amount": "100.01"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "The Idempotency-Key was already used for another request"
+}
+
+docs {
+  The key of 05 Deposit, one cent more. The same key with the same amount replays (06 Replay deposit),
+  so only the amount explains the refusal. Nothing is posted, so the run stays repeatable.
+}

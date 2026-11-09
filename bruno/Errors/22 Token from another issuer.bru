@@ -1,0 +1,30 @@
+meta {
+  name: Token from another issuer
+  type: http
+  seq: 22
+}
+
+get {
+  url: {{api}}/wallets/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{untrustedToken}}
+}
+
+assert {
+  res.status: eq 401
+}
+
+tests {
+  test("refuses the token itself, not a missing one", function () {
+    expect(res.getHeader("www-authenticate")).to.contain('error="invalid_token"');
+  });
+}
+
+docs {
+  Only the issuer differs from the token 03 Get wallet is accepted with, so only the issuer explains
+  the refusal.
+}

@@ -1,0 +1,28 @@
+meta {
+  name: Balance before the wallet existed
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{api}}/wallets/me/balance?at=2000-01-01T00:00:00Z
+  body: none
+  auth: bearer
+}
+
+params:query {
+  at: 2000-01-01T00:00:00Z
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "The wallet did not exist at that instant"
+}
+
+docs {
+  The wallet has no balance before it was opened; answering zero would hide a client error.
+}

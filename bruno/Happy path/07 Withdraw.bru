@@ -1,0 +1,55 @@
+meta {
+  name: Withdraw
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{api}}/wallets/me/withdrawals
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{withdrawalKey}}
+}
+
+script:pre-request {
+  // A new key per run: each run is a new withdrawal, which 08 Replay withdrawal then sends again.
+  bru.setVar("withdrawalKey", "bruno-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10));
+}
+
+body:json {
+  {
+    "amount": "30.50"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq "WITHDRAWAL"
+  res.body.amount: eq "-30.50"
+}
+
+tests {
+  test("balance fell by 30.50", function () {
+    const before = Number(bru.getVar("balance"));
+    expect(res.getBody().balance).to.equal((before - 30.5).toFixed(2));
+  });
+
+  test("generates a correlation id when none is sent", function () {
+    expect(res.getBody().correlationId).to.equal(res.getHeader("x-correlation-id"));
+  });
+
+  bru.setVar("balance", res.getBody().balance);
+  bru.setVar("withdrawalId", res.getBody().id);
+}
+
+docs {
+  The amount comes back signed: negative because money left the wallet.
+  No X-Correlation-Id is sent, so the service generates one.
+}

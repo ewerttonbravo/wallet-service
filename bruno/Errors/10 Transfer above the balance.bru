@@ -1,0 +1,36 @@
+meta {
+  name: Transfer above the balance
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{api}}/wallets/me/transfers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: bruno-above-balance
+}
+
+body:json {
+  {
+    "recipientWalletId": "{{recipientWalletId}}",
+    "amount": "1000000000.00"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "The balance is not enough for this transfer"
+}
+
+docs {
+  Far below the storable bound, so the recipient's limit cannot be what refuses it.
+  The key is fixed: a refused request keeps no key, so it stays free run after run.
+}

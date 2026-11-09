@@ -1,0 +1,64 @@
+meta {
+  name: Deposit
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{depositKey}}
+  X-Correlation-Id: bruno-deposit
+}
+
+script:pre-request {
+  // A new key per run: each run is a new deposit, which 06 Replay deposit then sends again.
+  bru.setVar("depositKey", "bruno-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10));
+}
+
+body:json {
+  {
+    "amount": "100.00"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq "DEPOSIT"
+  res.body.amount: eq "100.00"
+  res.body.currency: eq "BRL"
+  res.body.correlationId: eq "bruno-deposit"
+}
+
+tests {
+  test("Location points to the posted transaction", function () {
+    expect(res.getHeader("location")).to.equal("/wallets/me/transactions/" + res.getBody().id);
+  });
+
+  test("echoes the correlation id", function () {
+    expect(res.getHeader("x-correlation-id")).to.equal("bruno-deposit");
+  });
+
+  test("balance rose by 100.00", function () {
+    const before = Number(bru.getVar("balance"));
+    expect(res.getBody().balance).to.equal((before + 100).toFixed(2));
+  });
+
+  bru.setVar("balance", res.getBody().balance);
+  bru.setVar("transactionId", res.getBody().id);
+  bru.setVar("depositCreatedAt", res.getBody().createdAt);
+  bru.setVar("depositBalance", res.getBody().balance);
+}
+
+docs {
+  Run after 04 Get balance: the balance check compares against it.
+  Saves the transaction id for 09 Get transaction, its key for 06 Replay deposit, and its instant and balance for 18 Balance at an instant.
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Open wallet for another user
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{api}}/wallets
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{otherToken}}
+}
+
+tests {
+  test("the other user has a wallet (opened now, or before)", function () {
+    expect([201, 409]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  With a wallet of their own, a 404 in the next request can only mean the transaction is not theirs.
+}

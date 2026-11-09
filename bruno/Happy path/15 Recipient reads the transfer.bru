@@ -1,0 +1,27 @@
+meta {
+  name: Recipient reads the transfer
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{api}}/wallets/me/transactions/{{transferId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{otherToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{transferId}}
+  res.body.type: eq "TRANSFER"
+  res.body.amount: eq "20.00"
+  res.body.counterpartyWalletId: eq {{walletId}}
+}
+
+docs {
+  Both wallets read a transfer at the same address, each with its own amount and balance.
+}

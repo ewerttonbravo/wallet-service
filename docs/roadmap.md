@@ -15,7 +15,7 @@ The service is built in increments, ordered from the most to the least value del
 | 7 | `sprint/07-idempotent-withdraw-transfer` | The same idempotency contract on withdrawals and transfers | NFR3 |
 | 8 | `sprint/08-transaction-list` | Paginated listing of the wallet's transactions, newest first | FR7 |
 | 9 | `sprint/09-historical-balance` | Balance at an instant | FR3 |
-| 10 | `sprint/10-service-image` | Container image of the service in Docker Compose next to PostgreSQL and the issuer, one issuer host name for both sides; usage examples | NFR10 |
+| 10 | `sprint/10-service-image` | Container image of the service in Docker Compose next to PostgreSQL and the issuer, one issuer identity for clients and the service; usage examples | NFR10 |
 | 11 | `sprint/11-openapi` | OpenAPI contract served by the service | NFR7 |
 | 12 | `sprint/12-auth-problem-details` | Problem Details body on `401` and `403` | NFR7 |
 | 13 | `sprint/13-structured-logs` | Structured logs carrying the correlation id | NFR5 partially |

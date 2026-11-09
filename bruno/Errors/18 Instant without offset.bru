@@ -1,0 +1,28 @@
+meta {
+  name: Instant without offset
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{api}}/wallets/me/balance?at=2026-01-01T10:00:00
+  body: none
+  auth: bearer
+}
+
+params:query {
+  at: 2026-01-01T10:00:00
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+assert {
+  res.status: eq 400
+  res.body.detail: eq "at must be an ISO-8601 instant with offset, such as \"2026-11-09T10:00:00Z\""
+}
+
+docs {
+  Without an offset the same text names another instant in every time zone, so it is refused. The detail never echoes the value.
+}

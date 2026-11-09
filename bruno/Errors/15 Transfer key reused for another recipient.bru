@@ -1,0 +1,37 @@
+meta {
+  name: Transfer key reused for another recipient
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{api}}/wallets/me/transfers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{transferKey}}
+}
+
+body:json {
+  {
+    "recipientWalletId": "4b1c3d2e-0000-4000-8000-000000000000",
+    "amount": "20.00"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "The Idempotency-Key was already used for another request"
+}
+
+docs {
+  The key and amount of 13 Transfer, another recipient. The same recipient replays (14 Replay
+  transfer), so only the recipient explains the refusal. This wallet does not exist, yet the answer
+  is the reused key: a key is looked up before the recipient. Nothing is posted.
+}

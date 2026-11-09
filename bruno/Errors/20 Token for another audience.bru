@@ -1,0 +1,30 @@
+meta {
+  name: Token for another audience
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{api}}/wallets/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{otherAudienceToken}}
+}
+
+assert {
+  res.status: eq 401
+}
+
+tests {
+  test("refuses the token itself, not a missing one", function () {
+    expect(res.getHeader("www-authenticate")).to.contain('error="invalid_token"');
+  });
+}
+
+docs {
+  The same user reads the same wallet with a token for this service in 03 Get wallet, so only the
+  audience explains the refusal: a token issued to another service is not valid here.
+}

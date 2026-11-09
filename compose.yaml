@@ -2,7 +2,7 @@ name: wallet-service
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18.6-alpine3.24
     environment:
       POSTGRES_DB: wallet
       POSTGRES_USER: wallet
@@ -20,5 +20,28 @@ services:
       - "127.0.0.1:9000:8080" # loopback only, since it issues tokens to anyone; 8080 is taken by the service
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/local/.well-known/openid-configuration"]
+      interval: 2s
+      retries: 15
+
+  wallet-service:
+    build: .
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/wallet
+      SPRING_DATASOURCE_USERNAME: wallet
+      SPRING_DATASOURCE_PASSWORD: wallet # local-only throwaway credential
+      # Tokens name their issuer by the address the client used, so the trusted issuer is the one
+      # clients reach on this machine; the keys are fetched over the Compose network.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI: http://localhost:9000/local
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://issuer:8080/local/jwks
+    ports:
+      - "127.0.0.1:8080:8080" # loopback only
+    depends_on:
+      postgres:
+        condition: service_healthy
+      issuer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/actuator/health/readiness"]
+      start_period: 60s # failures in this window do not count; healthy as soon as it answers
       interval: 2s
       retries: 15

@@ -1,0 +1,39 @@
+meta {
+  name: Malformed idempotency key
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: "quoted"
+}
+
+body:json {
+  {
+    "amount": "1.00"
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+tests {
+  test("explains the format without echoing the key", function () {
+    expect(res.getBody().detail).to.equal("Idempotency-Key must be 1 to 64 letters, digits, '.', '_', ':' or '-'");
+  });
+}
+
+docs {
+  Quotes are refused, not taken as part of the key (the structured-field form of the IETF draft).
+}

@@ -1,0 +1,54 @@
+meta {
+  name: List transactions
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{api}}/wallets/me/transactions?size=2
+  body: none
+  auth: bearer
+}
+
+params:query {
+  size: 2
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.page: eq 0
+  res.body.size: eq 2
+  res.body.next: eq "/wallets/me/transactions?page=1&size=2"
+}
+
+tests {
+  test("newest first: the transfer, then the withdrawal, each once despite their replays", function () {
+    const ids = res.getBody().transactions.map(t => t.id);
+    expect(ids).to.deep.equal([bru.getVar("transferId"), bru.getVar("withdrawalId")]);
+  });
+  
+  test("each item is the transaction as reading it on its own shows it", function () {
+    const transfer = res.getBody().transactions[0];
+    expect(transfer.type).to.equal("TRANSFER");
+    expect(transfer.amount).to.equal("-20.00");
+    expect(transfer.balance).to.equal(bru.getVar("balance"));
+    expect(transfer.counterpartyWalletId).to.equal(bru.getVar("recipientWalletId"));
+  });
+  
+  test("the totals count every transaction of the wallet", function () {
+    const body = res.getBody();
+    expect(body.totalElements).to.be.at.least(3);
+    expect(body.totalPages).to.equal(Math.ceil(body.totalElements / 2));
+  });
+  
+  bru.setVar("nextPage", res.getBody().next);
+}
+
+docs {
+  The caller's history, two at a time. This run posted a deposit, a withdrawal and a transfer, so
+  the first page holds this run's newest two and links the next. Earlier runs add older ones.
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Another user's transaction
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{api}}/wallets/me/transactions/{{transactionId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{otherToken}}
+}
+
+assert {
+  res.status: eq 404
+  res.body.detail: eq "The user has no such transaction"
+}
+
+docs {
+  The other user asks for the deposit posted by 05 Deposit, which 09 Get transaction reads for its owner.
+}
