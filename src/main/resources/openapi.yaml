@@ -12,6 +12,9 @@ info:
 
     Every response carries `X-Correlation-Id`: the caller's, when it sent a valid one, or a generated
     UUID. A malformed `X-Correlation-Id` is refused with `400` on every path.
+servers:
+  - url: /
+    description: The host that serves this contract.
 security:
   - bearer: []
 paths:
