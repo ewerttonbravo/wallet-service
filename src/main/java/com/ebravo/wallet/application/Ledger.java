@@ -14,4 +14,7 @@ public interface Ledger {
 
     /** @return empty when the transaction does not exist or does not touch the wallet */
     Optional<WalletTransaction> find(WalletId wallet, TransactionId id);
+
+    /** The wallet's transactions as it sees them, newest first: in the order they were posted, reversed. */
+    TransactionPage history(WalletId wallet, PageRequest page);
 }

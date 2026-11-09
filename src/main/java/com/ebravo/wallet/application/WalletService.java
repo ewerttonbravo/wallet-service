@@ -101,6 +101,10 @@ public final class WalletService {
         return ledger.find(get(owner).id(), id).orElseThrow(TransactionNotFoundException::new);
     }
 
+    public TransactionPage transactions(OwnerId owner, PageRequest page) {
+        return ledger.history(get(owner).id(), page);
+    }
+
     private WalletTransaction post(
             OwnerId owner,
             IdempotencyKey key,

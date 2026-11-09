@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** The caller's own wallet, addressed as {@code me}: the owner always comes from the token. */
@@ -75,6 +76,15 @@ class WalletController {
             @RequestBody TransferRequest request) {
         return posted(wallets.transfer(ownerOf(token), request.recipient(), request.toMoney(), correlationId,
                 RequestFields.idempotencyKey(idempotencyKey)));
+    }
+
+    @GetMapping("/me/transactions")
+    TransactionPageResponse transactions(
+            @AuthenticationPrincipal Jwt token,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size) {
+        return TransactionPageResponse.of(
+                wallets.transactions(ownerOf(token), RequestFields.pageRequest(page, size)));
     }
 
     @GetMapping("/me/transactions/{id}")

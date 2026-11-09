@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, balances, deposits, withdrawals and transfers work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The transaction history and the balance at a past instant come next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The balance at a past instant comes next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -83,6 +83,12 @@ curl -H "Authorization: Bearer $BOB_TOKEN" http://localhost:8080/wallets/me/bala
 ```
 
 Both wallets see the transfer at the same `Location`, each with its own signed amount and balance, and the other wallet as `counterpartyWalletId`. A transfer sent again with the same key replays only when it names the same recipient and amount; for another recipient, it is refused with `422`.
+
+List the wallet's transactions, newest first, a page at a time (`page` from 0, `size` from 1 to 100, 20 by default). The response carries the totals and, until the last page, the path of the next one in `next`:
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/wallets/me/transactions?size=2"
+```
 
 Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.
 

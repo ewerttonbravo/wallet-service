@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import com.ebravo.wallet.IntegrationTest;
 import com.ebravo.wallet.application.IdempotencyKeys;
 import com.ebravo.wallet.application.Ledger;
+import com.ebravo.wallet.application.PageRequest;
+import com.ebravo.wallet.application.TransactionPage;
 import com.ebravo.wallet.application.Transactions;
 import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.application.WalletService;
@@ -121,6 +123,11 @@ class PostingAtomicityTest {
         @Override
         public Optional<WalletTransaction> find(WalletId wallet, TransactionId id) {
             return delegate.find(wallet, id);
+        }
+
+        @Override
+        public TransactionPage history(WalletId wallet, PageRequest page) {
+            return delegate.history(wallet, page);
         }
     }
 }
