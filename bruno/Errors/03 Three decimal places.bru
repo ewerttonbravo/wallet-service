@@ -1,0 +1,34 @@
+meta {
+  name: Three decimal places
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: bruno-error-three-decimals
+}
+
+body:json {
+  {
+    "amount": "10.001"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "Amount must have at most 2 decimal places: 10.001"
+}
+
+docs {
+  Rejected, never rounded.
+}

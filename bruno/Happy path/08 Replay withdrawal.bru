@@ -1,0 +1,46 @@
+meta {
+  name: Replay withdrawal
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{api}}/wallets/me/withdrawals
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{withdrawalKey}}
+}
+
+body:json {
+  {
+    "amount": "30.50"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq "WITHDRAWAL"
+  res.body.amount: eq "-30.50"
+}
+
+tests {
+  test("returns the withdrawal 07 posted", function () {
+    expect(res.getBody().id).to.equal(bru.getVar("withdrawalId"));
+    expect(res.getHeader("location")).to.equal("/wallets/me/transactions/" + bru.getVar("withdrawalId"));
+  });
+
+  test("with the balance 07 left: nothing was withdrawn again", function () {
+    expect(res.getBody().balance).to.equal(bru.getVar("balance"));
+  });
+}
+
+docs {
+  The same key and amount as 07 Withdraw: the original comes back and the balance does not move.
+}

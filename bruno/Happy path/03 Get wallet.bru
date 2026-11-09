@@ -1,0 +1,20 @@
+meta {
+  name: Get wallet
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{api}}/wallets/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  // 13 Transfer names this wallet as the counterparty; Errors/08 transfers to it.
+  bru.setVar("walletId", res.getBody().id);
+}

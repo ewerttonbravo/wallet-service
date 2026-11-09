@@ -1,0 +1,35 @@
+meta {
+  name: Insufficient funds
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{api}}/wallets/me/withdrawals
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: bruno-insufficient-funds
+}
+
+body:json {
+  {
+    "amount": "99999999999999999.99"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "The balance is not enough for this withdrawal"
+}
+
+docs {
+  The largest storable amount: always above the balance of a wallet built by this collection.
+  The key is fixed: a refused request keeps no key, so it stays free run after run.
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Invalid correlation id
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{api}}/wallets/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  X-Correlation-Id: has space
+}
+
+assert {
+  res.status: eq 400
+  res.body.detail: eq "X-Correlation-Id must be 1 to 64 letters, digits, '.', '_', ':' or '-'"
+}
+
+tests {
+  test("does not echo the rejected value", function () {
+    expect(res.getHeader("x-correlation-id")).to.be.undefined;
+  });
+}

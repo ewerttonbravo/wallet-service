@@ -1,0 +1,57 @@
+meta {
+  name: Transfer
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{api}}/wallets/me/transfers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{transferKey}}
+}
+
+script:pre-request {
+  // A new key per run: each run is a new transfer, which 14 Replay transfer then sends again.
+  bru.setVar("transferKey", "bruno-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10));
+}
+
+body:json {
+  {
+    "recipientWalletId": "{{recipientWalletId}}",
+    "amount": "20.00"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq "TRANSFER"
+  res.body.amount: eq "-20.00"
+  res.body.counterpartyWalletId: eq {{recipientWalletId}}
+}
+
+tests {
+  test("Location points to the posted transaction", function () {
+    expect(res.getHeader("location")).to.equal("/wallets/me/transactions/" + res.getBody().id);
+  });
+
+  test("balance fell by 20.00", function () {
+    const before = Number(bru.getVar("balance"));
+    expect(res.getBody().balance).to.equal((before - 20).toFixed(2));
+  });
+
+  bru.setVar("balance", res.getBody().balance);
+  bru.setVar("transferId", res.getBody().id);
+}
+
+docs {
+  The sender sees the transfer with a negative amount and the recipient as counterparty.
+  Saves the transaction id for 15 Recipient reads the transfer.
+}

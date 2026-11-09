@@ -1,0 +1,38 @@
+meta {
+  name: Balance at an instant
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{api}}/wallets/me/balance?at={{depositCreatedAt}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  at: {{depositCreatedAt}}
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.currency: eq "BRL"
+}
+
+tests {
+  test("is the balance right after 05 Deposit, before the postings that followed it", function () {
+    expect(res.getBody().balance).to.equal(bru.getVar("depositBalance"));
+  });
+
+  test("differs from the current balance, which the withdrawal and transfer since lowered", function () {
+    expect(res.getBody().balance).to.not.equal(bru.getVar("balance"));
+  });
+}
+
+docs {
+  Run after 05 Deposit, which saves its instant and resulting balance, and after the postings that followed it.
+}

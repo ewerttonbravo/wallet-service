@@ -1,0 +1,34 @@
+meta {
+  name: Next page
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{api}}{{nextPage}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.page: eq 1
+  res.body.size: eq 2
+}
+
+tests {
+  test("continues with the deposit, the oldest posting of this run", function () {
+    const first = res.getBody().transactions[0];
+    expect(first.id).to.equal(bru.getVar("transactionId"));
+    expect(first.type).to.equal("DEPOSIT");
+  });
+}
+
+docs {
+  Follows the next link of 16 List transactions. The page after it holds this run's deposit, then
+  the newest transaction of an earlier run, if any.
+}

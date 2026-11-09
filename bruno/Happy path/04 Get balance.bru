@@ -1,0 +1,20 @@
+meta {
+  name: Get balance
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{api}}/wallets/me/balance
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  // Later requests check the balance against this one.
+  bru.setVar("balance", res.getBody().balance);
+}

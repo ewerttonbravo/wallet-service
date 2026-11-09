@@ -1,0 +1,40 @@
+meta {
+  name: Amount as JSON number
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: bruno-error-json-number
+}
+
+body:json {
+  {
+    "amount": 100.00
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+tests {
+  test("refused for the amount, not for the key", function () {
+    // Strict coercion refuses the number while reading the body, before the key is looked at.
+    expect(res.getBody().detail).to.equal("Failed to read request");
+  });
+}
+
+docs {
+  Amounts must be decimal strings: many clients read JSON numbers as binary floating point.
+}

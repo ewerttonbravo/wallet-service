@@ -1,0 +1,53 @@
+meta {
+  name: Replay deposit
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{api}}/wallets/me/deposits
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: {{depositKey}}
+  X-Correlation-Id: bruno-replay
+}
+
+body:json {
+  {
+    "amount": "100.00"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq "DEPOSIT"
+  res.body.amount: eq "100.00"
+}
+
+tests {
+  test("returns the deposit 05 posted", function () {
+    expect(res.getBody().id).to.equal(bru.getVar("transactionId"));
+    expect(res.getHeader("location")).to.equal("/wallets/me/transactions/" + bru.getVar("transactionId"));
+  });
+
+  test("with the balance and correlation id of the original", function () {
+    expect(res.getBody().balance).to.equal(bru.getVar("balance"));
+    expect(res.getBody().correlationId).to.equal("bruno-deposit");
+  });
+
+  test("while this request keeps its own correlation id", function () {
+    expect(res.getHeader("x-correlation-id")).to.equal("bruno-replay");
+  });
+}
+
+docs {
+  The same key as 05 Deposit: nothing is posted again. 07 Withdraw checks its balance against the
+  one 05 saved, so a second deposit would fail it.
+}

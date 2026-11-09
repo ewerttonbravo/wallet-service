@@ -1,0 +1,36 @@
+meta {
+  name: Transfer to unknown wallet
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{api}}/wallets/me/transfers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Idempotency-Key: bruno-unknown-wallet
+}
+
+body:json {
+  {
+    "recipientWalletId": "4b1c3d2e-0000-4000-8000-000000000000",
+    "amount": "1.00"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.detail: eq "The recipient wallet does not exist"
+}
+
+docs {
+  A rule violation, not a missing resource: 404 means only that the caller has no wallet.
+  The key is fixed: a refused request keeps no key, so it stays free run after run.
+}

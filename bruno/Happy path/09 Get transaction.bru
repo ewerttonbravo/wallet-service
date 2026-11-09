@@ -1,0 +1,27 @@
+meta {
+  name: Get transaction
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{api}}/wallets/me/transactions/{{transactionId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{transactionId}}
+  res.body.type: eq "DEPOSIT"
+  res.body.amount: eq "100.00"
+  res.body.correlationId: eq "bruno-deposit"
+}
+
+docs {
+  Reads back the deposit posted by 05 Deposit.
+}

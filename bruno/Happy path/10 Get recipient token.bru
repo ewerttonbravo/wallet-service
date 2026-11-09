@@ -1,0 +1,22 @@
+meta {
+  name: Get recipient token
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{issuer}}/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: {{otherUser}}
+  client_secret: any
+  scope: {{audience}}
+}
+
+script:post-response {
+  bru.setVar("otherToken", res.getBody().access_token);
+}

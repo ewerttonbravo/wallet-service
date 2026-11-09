@@ -1,0 +1,30 @@
+meta {
+  name: Withdrawal without idempotency key
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{api}}/wallets/me/withdrawals
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "amount": "0.01"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.detail: eq "Idempotency-Key header is required"
+}
+
+docs {
+  The same withdrawal with a key is accepted (07 Withdraw), so only the missing key explains the refusal.
+}
