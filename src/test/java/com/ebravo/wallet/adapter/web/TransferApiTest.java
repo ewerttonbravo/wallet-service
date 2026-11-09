@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 class TransferApiTest {
 
     private static final String TRANSFERS = "/wallets/me/transfers";
+    private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
     private static final String LOCATION = "/wallets/me/transactions/\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}";
 
     @Autowired
@@ -41,6 +42,7 @@ class TransferApiTest {
         var bob = aWalletOwnerWith("0.00");
 
         var transfer = mvc.post().uri(TRANSFERS).with(tokenOf(alice.owner())).header("X-Correlation-Id", "req-1")
+                .header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON).content(transferTo(bob.wallet(), "30.00")).exchange();
 
         assertThat(transfer).hasStatus(HttpStatus.CREATED);
@@ -62,6 +64,64 @@ class TransferApiTest {
         assertThat(mvc.get().uri(location).with(tokenOf(bob.owner()))).hasStatusOk().bodyJson().isLenientlyEqualTo("""
                 {"type": "TRANSFER", "amount": "30.00", "balance": "30.00", "counterpartyWalletId": "%s"}
                 """.formatted(alice.wallet()));
+    }
+
+    // The whole balance is transferred: had the retry been posted again, it would have been refused.
+    @Test
+    void replaysATransferSentAgainWithTheSameKey() throws Exception {
+        var alice = aWalletOwnerWith("30.00");
+        var bob = aWalletOwnerWith("0.00");
+        var first = transfer(alice, "transfer-1", transferTo(bob.wallet(), "30.00"));
+
+        var retry = transfer(alice, "transfer-1", transferTo(bob.wallet(), "30.00"));
+
+        assertThat(retry).hasStatus(HttpStatus.CREATED)
+                .hasHeader(HttpHeaders.LOCATION, first.getResponse().getHeader(HttpHeaders.LOCATION));
+        assertThat(retry).bodyJson().isStrictlyEqualTo(first.getResponse().getContentAsString());
+        assertBalance(alice, "0.00");
+        assertBalance(bob, "30.00");
+    }
+
+    // Same key and amount, another recipient: replaying would tell Alice she paid Carol.
+    @Test
+    void refusesATransferKeyReusedForAnotherRecipient() {
+        var alice = aWalletOwnerWith("100.00");
+        var bob = aWalletOwnerWith("0.00");
+        var carol = aWalletOwnerWith("0.00");
+        transfer(alice, "transfer-1", transferTo(bob.wallet(), "10.00"));
+
+        var reused = transfer(alice, "transfer-1", transferTo(carol.wallet(), "10.00"));
+
+        assertProblem(reused, HttpStatus.UNPROCESSABLE_CONTENT, "The Idempotency-Key was already used for another request");
+        assertBalance(alice, "90.00");
+        assertBalance(bob, "10.00");
+        assertBalance(carol, "0.00");
+    }
+
+    // The same transfer with a key is accepted (first test), so only the missing key explains the refusal.
+    @Test
+    void refusesATransferWithoutIdempotencyKey() {
+        var alice = aWalletOwnerWith("100.00");
+        var bob = aWalletOwnerWith("0.00");
+
+        var result = mvc.post().uri(TRANSFERS).with(tokenOf(alice.owner()))
+                .contentType(MediaType.APPLICATION_JSON).content(transferTo(bob.wallet(), "10.00")).exchange();
+
+        assertProblem(result, HttpStatus.BAD_REQUEST, "Idempotency-Key header is required");
+        assertBalance(alice, "100.00");
+        assertBalance(bob, "0.00");
+    }
+
+    // Every malformed form is pinned on deposits (TransactionApiTest); transfers check the same format.
+    @Test
+    void refusesAMalformedIdempotencyKey() {
+        var alice = aWalletOwnerWith("100.00");
+        var bob = aWalletOwnerWith("0.00");
+
+        assertProblem(transfer(alice, "has space", transferTo(bob.wallet(), "10.00")), HttpStatus.BAD_REQUEST,
+                "Idempotency-Key must be 1 to 64 letters, digits, '.', '_', ':' or '-'");
+        assertBalance(alice, "100.00");
+        assertBalance(bob, "0.00");
     }
 
     // The whole balance can be transferred (above), so only the extra cent explains the refusal.
@@ -160,7 +220,7 @@ class TransferApiTest {
     void reportsACallerWithoutWallet() {
         var bob = aWalletOwnerWith("0.00");
 
-        var result = mvc.post().uri(TRANSFERS).with(tokenOf(anOwner()))
+        var result = mvc.post().uri(TRANSFERS).with(tokenOf(anOwner())).header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON).content(transferTo(bob.wallet(), "10.00")).exchange();
 
         assertProblem(result, HttpStatus.NOT_FOUND, "The user has no wallet");
@@ -183,14 +243,19 @@ class TransferApiTest {
         var walletOwner = new WalletOwner(owner, read(opened, "$.id"));
         if (!balance.equals("0.00")) {
             assertThat(mvc.post().uri("/wallets/me/deposits").with(tokenOf(owner)).contentType(MediaType.APPLICATION_JSON)
-                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                     .content("{\"amount\": \"" + balance + "\"}")).hasStatus(HttpStatus.CREATED);
         }
         return walletOwner;
     }
 
+    /** Each call is a new request: it carries a fresh idempotency key. */
     private MvcTestResult transfer(WalletOwner from, String body) {
-        return mvc.post().uri(TRANSFERS).with(tokenOf(from.owner()))
+        return transfer(from, UUID.randomUUID().toString(), body);
+    }
+
+    private MvcTestResult transfer(WalletOwner from, String idempotencyKey, String body) {
+        return mvc.post().uri(TRANSFERS).with(tokenOf(from.owner())).header(IDEMPOTENCY_KEY, idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
     }
 
