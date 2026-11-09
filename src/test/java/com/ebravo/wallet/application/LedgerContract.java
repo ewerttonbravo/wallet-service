@@ -3,6 +3,7 @@ package com.ebravo.wallet.application;
 import static com.ebravo.wallet.Fixtures.NOW;
 import static com.ebravo.wallet.Fixtures.anOwner;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatRuntimeException;
 
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.LedgerTransaction;
@@ -85,6 +86,18 @@ public interface LedgerContract {
     @Test
     default void findsNothingForAnUnknownTransaction() {
         assertThat(ledger().find(aWallet().id(), TransactionId.newId())).isEmpty();
+    }
+
+    // The first append is kept as it was: the second neither replaces it nor lists it twice.
+    @Test
+    default void refusesToAppendATransactionTwice() {
+        var wallet = aWallet();
+        var deposit = wallet.deposit(money("10.50"), CORRELATION, NOW).transaction();
+        append(deposit);
+
+        assertThatRuntimeException().isThrownBy(() -> append(deposit));
+        assertThat(ledger().history(wallet.id(), new PageRequest(0, 20)).transactions())
+                .containsExactly(viewOf(deposit, wallet));
     }
 
     @Test

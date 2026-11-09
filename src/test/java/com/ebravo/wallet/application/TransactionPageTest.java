@@ -41,6 +41,12 @@ class TransactionPageTest {
         assertThat(page(5, 20, 21).next()).isEmpty();
     }
 
+    // The page after the last int would wrap around to a negative number.
+    @Test
+    void theLastPossiblePageHasNoNext() {
+        assertThat(page(Integer.MAX_VALUE, 1, Long.MAX_VALUE).next()).isEmpty();
+    }
+
     @Test
     void anEmptyHistoryHasNoNext() {
         assertThat(page(0, 20, 0).next()).isEmpty();
