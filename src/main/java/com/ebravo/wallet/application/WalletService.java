@@ -58,13 +58,13 @@ public final class WalletService {
     public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         // Checked before the lock too, so a request that can never succeed does not wait for it.
         amount.requirePositive();
-        return postOnce(owner, key, original -> original.isDepositOf(amount),
+        return post(owner, key, original -> original.isDepositOf(amount),
                 (wallet, at) -> wallet.deposit(amount, correlationId, at));
     }
 
     public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
-        return postOnce(owner, key, original -> original.isWithdrawalOf(amount),
+        return post(owner, key, original -> original.isWithdrawalOf(amount),
                 (wallet, at) -> wallet.withdraw(amount, correlationId, at));
     }
 
@@ -101,7 +101,7 @@ public final class WalletService {
         return ledger.find(get(owner).id(), id).orElseThrow(TransactionNotFoundException::new);
     }
 
-    private WalletTransaction postOnce(
+    private WalletTransaction post(
             OwnerId owner,
             IdempotencyKey key,
             Predicate<WalletTransaction> sameRequest,
