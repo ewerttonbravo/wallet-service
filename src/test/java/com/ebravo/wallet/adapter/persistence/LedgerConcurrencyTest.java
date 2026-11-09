@@ -115,8 +115,8 @@ class LedgerConcurrencyTest {
 
         var attempts = releasedTogether(IntStream.range(0, 32)
                 .<Callable<WalletTransaction>>mapToObj(i -> i % 2 == 0
-                        ? () -> wallets.transfer(alice, bobWallet, money("1.00"), CORRELATION)
-                        : () -> wallets.transfer(bob, aliceWallet, money("1.00"), CORRELATION))
+                        ? () -> wallets.transfer(alice, bobWallet, money("1.00"), CORRELATION, aKey())
+                        : () -> wallets.transfer(bob, aliceWallet, money("1.00"), CORRELATION, aKey()))
                 .toList());
 
         assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
@@ -133,7 +133,7 @@ class LedgerConcurrencyTest {
         var bobWallet = wallets.get(bob).id();
 
         var attempts = releasedTogether(IntStream.range(0, 32)
-                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("10.00"), CORRELATION))
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("10.00"), CORRELATION, aKey()))
                 .toList());
 
         assertThat(succeeded(attempts)).isEqualTo(10);

@@ -68,8 +68,13 @@ public final class WalletService {
                 (wallet, at) -> wallet.withdraw(amount, correlationId, at));
     }
 
-    /** Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner sees it. */
-    public WalletTransaction transfer(OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId) {
+    /**
+     * Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner
+     * sees it. The key is looked up once both wallets are locked, so a retry gets its transfer back
+     * even when the balance would no longer cover it.
+     */
+    public WalletTransaction transfer(
+            OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
         // A wallet's id never changes, so it is read before the transaction, where no lock is held yet.
         var source = get(owner).id();
@@ -84,8 +89,10 @@ public final class WalletService {
                 wallets.lockById(id).ifPresent(wallet -> locked.put(id, wallet));
             }
             var sender = locked.get(source);
-            var target = Optional.ofNullable(locked.get(recipient)).orElseThrow(RecipientNotFoundException::new);
-            return record(sender, sender.transfer(amount, target, correlationId, now()));
+            return once(sender, key, original -> original.isTransferOf(recipient, amount), () -> {
+                var target = Optional.ofNullable(locked.get(recipient)).orElseThrow(RecipientNotFoundException::new);
+                return record(sender, sender.transfer(amount, target, correlationId, now()));
+            });
         });
     }
 
