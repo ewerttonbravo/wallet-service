@@ -70,6 +70,22 @@ class LedgerConcurrencyTest {
         assertReconciles(owner);
     }
 
+    /** A client retrying a deposit it got no answer for, many times at once: one deposit is posted. */
+    @Test
+    void concurrentRetriesOfADepositPostItOnce() {
+        var owner = aWalletWith("20.00");
+        var key = aKey();
+
+        var attempts = releasedTogether(IntStream.range(0, 16)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.deposit(owner, money("5.00"), CORRELATION, key))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(attempts.stream().map(Future::resultNow).distinct()).hasSize(1);
+        assertThat(wallets.get(owner).balance()).isEqualTo(money("25.00"));
+        assertReconciles(owner);
+    }
+
     /**
      * Each transfer holds one wallet and waits for the other. Locked sender first, a transfer from A
      * to B and one from B to A would each hold what the other needs; locked in id order, they queue.
