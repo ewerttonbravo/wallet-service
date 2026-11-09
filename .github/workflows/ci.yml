@@ -16,3 +16,20 @@ jobs:
           java-version: 25
           cache: maven
       - run: ./mvnw -B verify
+
+  # The stack as the README runs it: the service image next to PostgreSQL and the issuer,
+  # called by the API collection with tokens fetched from the host side.
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: docker compose up -d --wait --build
+      - run: npx -y @usebruno/cli@4.3.0 run --env local -r
+        working-directory: bruno
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v
