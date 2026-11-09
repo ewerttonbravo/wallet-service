@@ -13,6 +13,8 @@ import org.springframework.test.context.ContextConfiguration;
  * Full application against a real PostgreSQL and the local token issuer. Every integration test
  * uses this exact setup, so they all share one cached context and one set of containers.
  *
+ * <p>Every MockMvc exchange is checked against the OpenAPI contract ({@link ApiContractValidation}).
+ *
  * <p>API tests build tokens with Spring Security's test support, which skips decoding;
  * {@code JwtAuthenticationTest} covers validation of issued tokens.
  */
@@ -21,6 +23,6 @@ import org.springframework.test.context.ContextConfiguration;
 @SpringBootTest
 @ContextConfiguration(initializers = LocalIssuerInitializer.class)
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, ApiContractValidation.class})
 public @interface IntegrationTest {
 }
