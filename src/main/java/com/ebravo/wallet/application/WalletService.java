@@ -20,6 +20,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class WalletService {
@@ -100,16 +101,24 @@ public final class WalletService {
     private WalletTransaction postOnce(OwnerId owner, IdempotencyKey key, BiFunction<Wallet, Instant, Posting> operation) {
         return transactions.inTransaction(() -> {
             var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
-            // Looked up under the lock: a retry sent while the first request is still posting waits
-            // for it here, then finds its key. A refused posting records none, so its retry runs again.
-            return keys.find(wallet.id(), key)
-                    .map(posted -> ledger.find(wallet.id(), posted).orElseThrow())
-                    .orElseGet(() -> {
-                        var posted = record(wallet, operation.apply(wallet, now()));
-                        keys.record(wallet.id(), key, posted.id());
-                        return posted;
-                    });
+            // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
+            return once(wallet, key, () -> record(wallet, operation.apply(wallet, now())));
         });
+    }
+
+    /**
+     * Must run under the lock of the wallet that sent the key: a retry sent while the first request
+     * is still posting waits for it there, then finds its key. A refused posting records no key, so
+     * its retry runs again.
+     */
+    private WalletTransaction once(Wallet wallet, IdempotencyKey key, Supplier<WalletTransaction> posting) {
+        return keys.find(wallet.id(), key)
+                .map(posted -> ledger.find(wallet.id(), posted).orElseThrow())
+                .orElseGet(() -> {
+                    var posted = posting.get();
+                    keys.record(wallet.id(), key, posted.id());
+                    return posted;
+                });
     }
 
     /** Stores every changed balance and the transaction that explains them, in the caller's transaction. */
