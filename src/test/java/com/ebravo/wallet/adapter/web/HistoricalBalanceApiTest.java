@@ -104,10 +104,10 @@ class HistoricalBalanceApiTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "yesterday",
-            "2026-11-09T10:00:00",
-            "2026-11-09",
+            "2025-03-04T05:06:07",
+            "2025-03-04",
             "2026-13-01T00:00:00Z",
-            "2026-11-09T10:00:00 03:00",
+            "2025-03-04T05:06:07 03:00",
             "",
             "11111111111111111111111111111111111111111111111111111111111111111"})
     void refusesAMalformedInstantWithoutEchoingIt(String at) throws Exception {
