@@ -45,3 +45,4 @@ Each compromise has a kind: a **design choice** would stay the same with more ti
 | 3 (follow-up) | Coverage gate scoped to the domain and application layers, posting atomicity test, correlation id trust recorded | 0.3 |
 | 4 | Transfers: one ledger transaction for both wallets, locks in wallet id order, a lock that reads what it protects, entries tied to their type in the domain and the database | 0.5 |
 | Planning | Roadmap split into one-behavior increments | 0.2 |
+| Tooling | Manual API collection (Bruno) brought up to date with transfers and run as evidence at the close of every increment | 0.1 |
