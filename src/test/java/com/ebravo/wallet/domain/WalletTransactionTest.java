@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 class WalletTransactionTest {
 
+    private static final WalletId BOB = WalletId.newId();
+
     @Test
     void keepsEveryFieldAsGiven() {
         var id = TransactionId.newId();
@@ -61,8 +63,44 @@ class WalletTransactionTest {
         assertThat(transaction(TransactionType.TRANSFER, "-10.50").isWithdrawalOf(money("10.50"))).isFalse();
     }
 
+    @Test
+    void aTransferIsTheTransferOfItsRecipientAndAmount() {
+        assertThat(transaction(TransactionType.TRANSFER, "-10.50", BOB).isTransferOf(BOB, money("10.50"))).isTrue();
+    }
+
+    @Test
+    void aTransferIsNotTheTransferToAnotherRecipient() {
+        assertThat(transaction(TransactionType.TRANSFER, "-10.50", BOB).isTransferOf(WalletId.newId(), money("10.50")))
+                .isFalse();
+    }
+
+    @Test
+    void aTransferIsNotTheTransferOfAnotherAmount() {
+        assertThat(transaction(TransactionType.TRANSFER, "-10.50", BOB).isTransferOf(BOB, money("10.51"))).isFalse();
+    }
+
+    // Received from Bob: same wallet and absolute amount, only the sign tells it was not sent.
+    @Test
+    void anIncomingTransferIsNotTheTransferOfItsAmount() {
+        assertThat(transaction(TransactionType.TRANSFER, "10.50", BOB).isTransferOf(BOB, money("10.50"))).isFalse();
+    }
+
+    // A withdrawal has no counterparty; one is given here so that only the type tells them apart.
+    @Test
+    void aWithdrawalIsNotATransfer() {
+        assertThat(transaction(TransactionType.WITHDRAWAL, "-10.50", BOB).isTransferOf(BOB, money("10.50"))).isFalse();
+    }
+
     private static WalletTransaction transaction(TransactionType type, String amount) {
-        return new WalletTransaction(TransactionId.newId(), type, money(amount), money(amount), Optional.empty(),
+        return transaction(type, amount, Optional.empty());
+    }
+
+    private static WalletTransaction transaction(TransactionType type, String amount, WalletId counterparty) {
+        return transaction(type, amount, Optional.of(counterparty));
+    }
+
+    private static WalletTransaction transaction(TransactionType type, String amount, Optional<WalletId> counterparty) {
+        return new WalletTransaction(TransactionId.newId(), type, money(amount), money(amount), counterparty,
                 new CorrelationId("request-1"), Instant.parse("2026-11-08T10:15:30.123456Z"));
     }
 
