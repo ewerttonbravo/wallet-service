@@ -86,7 +86,7 @@ class IdempotencyKeySchemaTest {
 
         assertThatExceptionOfType(DataIntegrityViolationException.class)
                 .isThrownBy(() -> jdbc.sql(statement).param("wallet", wallet.id().value()).update())
-                .withMessageContaining("The ledger is append-only");
+                .withMessageContaining("Idempotency keys are append-only");
         assertThat(keysOf(wallet)).isEqualTo(1);
     }
 
@@ -97,7 +97,7 @@ class IdempotencyKeySchemaTest {
 
         assertThatExceptionOfType(DataIntegrityViolationException.class)
                 .isThrownBy(() -> jdbc.sql("truncate idempotency_key").update())
-                .withMessageContaining("The ledger is append-only");
+                .withMessageContaining("Idempotency keys are append-only");
         assertThat(keysOf(wallet)).isEqualTo(1);
     }
 
