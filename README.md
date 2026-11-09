@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. Running the service itself in Docker Compose comes next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer. Operability comes next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -29,23 +29,15 @@ export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 
 ## Run
 
-Requires Docker with Compose, plus `curl` and `jq` for the examples. Start PostgreSQL and the local token issuer:
+Requires Docker with Compose, plus `curl` and `jq` for the examples. Build the service image and start it with PostgreSQL and the local token issuer:
 
 ```sh
-docker compose up -d --wait
+docker compose up -d --wait --build
 ```
 
-The service reads its database and issuer from environment variables and refuses to start without them. Flyway creates the schema on startup. Check that the service is up with `curl localhost:8080/actuator/health`.
+The first build downloads the dependencies and takes a few minutes; later builds reuse them. Flyway creates the schema on startup. Check that the service is up with `curl localhost:8080/actuator/health`.
 
-```sh
-export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
-export SPRING_DATASOURCE_USERNAME=wallet
-export SPRING_DATASOURCE_PASSWORD=wallet
-export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000/local
-./mvnw spring-boot:run
-```
-
-In another terminal, get a token for a user (`client_id` becomes the token subject, `scope` its audience) and call the API:
+Get a token for a user (`client_id` becomes the token subject, `scope` its audience) and call the API:
 
 ```sh
 TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=alice -d client_secret=any \
@@ -97,7 +89,30 @@ AT=$(curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/wallets/me
 curl -G -H "Authorization: Bearer $TOKEN" --data-urlencode "at=$AT" http://localhost:8080/wallets/me/balance
 ```
 
-Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.
+Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`; for 9000, change the port of `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml` and of `issuer` in `bruno/environments/local.bru` as well. Stop everything with `docker compose down -v`.
+
+### Run from source
+
+To run the service from source while developing (JDK 25 required), start only PostgreSQL and the issuer and give the service its database and issuer through environment variables; it refuses to start without them:
+
+```sh
+docker compose up -d --wait postgres issuer
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
+export SPRING_DATASOURCE_USERNAME=wallet
+export SPRING_DATASOURCE_PASSWORD=wallet
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000/local
+./mvnw spring-boot:run
+```
+
+### API collection
+
+[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first and then the errors, each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
+
+```sh
+cd bruno && npx -y @usebruno/cli@4.3.0 run --env local -r
+```
+
+It can run again and again against the same database. CI runs it against the stack `docker compose` starts, on every pull request and every push to `main`.
 
 ## Documentation
 
