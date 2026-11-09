@@ -89,7 +89,7 @@ class PostingAtomicityTest {
         new WalletService(wallets, ledger, keys, transactions, clock).deposit(alice, money("10.00"), CORRELATION, aKey());
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> service.transfer(alice, recipient.id(), money("4.00"), CORRELATION))
+                .isThrownBy(() -> service.transfer(alice, recipient.id(), money("4.00"), CORRELATION, aKey()))
                 .withMessage("ledger failed after writing");
 
         assertThat(service.get(alice).balance()).isEqualTo(money("10.00"));

@@ -169,7 +169,7 @@ class WalletServiceTest {
         var key = aKey();
         assertThatExceptionOfType(BalanceLimitExceededException.class)
                 .isThrownBy(() -> service.deposit(owner, money("0.01"), CORRELATION, key));
-        service.withdraw(owner, money("1.00"), CORRELATION);
+        service.withdraw(owner, money("1.00"), CORRELATION, aKey());
 
         var retry = service.deposit(owner, money("0.01"), CORRELATION, key);
 
@@ -183,7 +183,7 @@ class WalletServiceTest {
         var wallet = service.open(owner);
         service.deposit(owner, money("10.50"), CORRELATION, aKey());
 
-        var withdrawal = service.withdraw(owner, money("0.50"), new CorrelationId("request-2"));
+        var withdrawal = service.withdraw(owner, money("0.50"), new CorrelationId("request-2"), aKey());
 
         assertThat(withdrawal).usingRecursiveComparison().ignoringFields("id").isEqualTo(new WalletTransaction(
                 TransactionId.newId(), TransactionType.WITHDRAWAL, money("-0.50"), money("10.00"),
@@ -192,13 +192,58 @@ class WalletServiceTest {
         assertThat(ledger.find(wallet.id(), withdrawal.id())).contains(withdrawal);
     }
 
+    // The whole balance is withdrawn: had the retry been posted again, it would have been refused.
+    @Test
+    void replaysAWithdrawalPostedWithTheSameKey() {
+        var owner = anOwner();
+        service.open(owner);
+        service.deposit(owner, money("10.50"), CORRELATION, aKey());
+        var key = aKey();
+        var first = service.withdraw(owner, money("10.50"), CORRELATION, key);
+
+        var retry = service.withdraw(owner, money("10.50"), new CorrelationId("request-2"), key);
+
+        assertThat(retry).isEqualTo(first);
+        assertThat(service.get(owner).balance()).isEqualTo(Money.ZERO);
+        assertThat(ledger.size()).isEqualTo(2);
+    }
+
+    // Enough balance for both, and the same key and amount replay (above): only the amount explains it.
+    @Test
+    void refusesAWithdrawalKeyReusedForAnotherAmount() {
+        var owner = anOwner();
+        service.open(owner);
+        service.deposit(owner, money("20.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.withdraw(owner, money("5.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.withdraw(owner, money("5.01"), CORRELATION, key));
+        assertThat(service.get(owner).balance()).isEqualTo(money("15.00"));
+        assertThat(ledger.size()).isEqualTo(2);
+    }
+
+    // The deposit's key and amount, sent as a withdrawal: only the operation differs.
+    @Test
+    void refusesAKeyReusedOnAnotherOperation() {
+        var owner = anOwner();
+        service.open(owner);
+        var key = aKey();
+        service.deposit(owner, money("10.50"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.withdraw(owner, money("10.50"), CORRELATION, key));
+        assertThat(service.get(owner).balance()).isEqualTo(money("10.50"));
+        assertThat(ledger.size()).isEqualTo(1);
+    }
+
     @Test
     void eachPostingRunsInOneTransaction() {
         var owner = anOwner();
         service.open(owner);
 
         service.deposit(owner, money("10.50"), CORRELATION, aKey());
-        service.withdraw(owner, money("0.50"), CORRELATION);
+        service.withdraw(owner, money("0.50"), CORRELATION, aKey());
 
         assertThat(transactions.count).isEqualTo(2);
     }
@@ -212,7 +257,7 @@ class WalletServiceTest {
         assertThatExceptionOfType(InvalidAmountException.class)
                 .isThrownBy(() -> service.deposit(owner, Money.ZERO, CORRELATION, aKey()));
         assertThatExceptionOfType(InvalidAmountException.class)
-                .isThrownBy(() -> service.withdraw(owner, money("-0.01"), CORRELATION));
+                .isThrownBy(() -> service.withdraw(owner, money("-0.01"), CORRELATION, aKey()));
         assertThat(transactions.count).isZero();
     }
 
@@ -224,7 +269,7 @@ class WalletServiceTest {
         assertThatExceptionOfType(WalletNotFoundException.class)
                 .isThrownBy(() -> service.deposit(owner, money("10.50"), CORRELATION, aKey()));
         assertThatExceptionOfType(WalletNotFoundException.class)
-                .isThrownBy(() -> service.withdraw(owner, money("10.50"), CORRELATION));
+                .isThrownBy(() -> service.withdraw(owner, money("10.50"), CORRELATION, aKey()));
         assertThat(ledger.isEmpty()).isTrue();
     }
 
@@ -234,7 +279,7 @@ class WalletServiceTest {
         service.open(owner);
 
         assertThatExceptionOfType(InsufficientFundsException.class)
-                .isThrownBy(() -> service.withdraw(owner, money("0.01"), CORRELATION));
+                .isThrownBy(() -> service.withdraw(owner, money("0.01"), CORRELATION, aKey()));
 
         assertThat(service.get(owner).balance()).isEqualTo(Money.ZERO);
         assertThat(ledger.isEmpty()).isTrue();
@@ -248,7 +293,7 @@ class WalletServiceTest {
         var recipient = service.open(bob);
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
 
-        var transfer = service.transfer(alice, recipient.id(), money("10.50"), new CorrelationId("request-2"));
+        var transfer = service.transfer(alice, recipient.id(), money("10.50"), new CorrelationId("request-2"), aKey());
 
         assertThat(transfer).usingRecursiveComparison().ignoringFields("id").isEqualTo(new WalletTransaction(
                 TransactionId.newId(), TransactionType.TRANSFER, money("-10.50"), money("14.50"),
@@ -259,6 +304,106 @@ class WalletServiceTest {
         assertThat(ledger.find(recipient.id(), transfer.id())).map(WalletTransaction::amount).contains(money("10.50"));
     }
 
+    // The whole balance is transferred: had the retry been posted again, it would have been refused.
+    @Test
+    void replaysATransferPostedWithTheSameKey() {
+        var alice = anOwner();
+        service.open(alice);
+        var recipient = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        var first = service.transfer(alice, recipient.id(), money("25.00"), CORRELATION, key);
+
+        var retry = service.transfer(alice, recipient.id(), money("25.00"), new CorrelationId("request-2"), key);
+
+        assertThat(retry).isEqualTo(first);
+        assertThat(service.get(alice).balance()).isEqualTo(Money.ZERO);
+        assertThat(service.get(recipient.owner()).balance()).isEqualTo(money("25.00"));
+        assertThat(ledger.size()).isEqualTo(2);
+    }
+
+    // Same key and amount, another recipient with room for it: only the recipient explains the refusal.
+    @Test
+    void refusesATransferKeyReusedForAnotherRecipient() {
+        var alice = anOwner();
+        service.open(alice);
+        var bob = service.open(anOwner());
+        var carol = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.transfer(alice, carol.id(), money("10.00"), CORRELATION, key));
+        assertThat(service.get(alice).balance()).isEqualTo(money("15.00"));
+        assertThat(service.get(carol.owner()).balance()).isEqualTo(Money.ZERO);
+        assertThat(ledger.size()).isEqualTo(2);
+    }
+
+    @Test
+    void refusesATransferKeyReusedForAnotherAmount() {
+        var alice = anOwner();
+        service.open(alice);
+        var bob = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.transfer(alice, bob.id(), money("10.01"), CORRELATION, key));
+        assertThat(service.get(alice).balance()).isEqualTo(money("15.00"));
+        assertThat(service.get(bob.owner()).balance()).isEqualTo(money("10.00"));
+        assertThat(ledger.size()).isEqualTo(2);
+    }
+
+    // Sent with a fresh key, the same request is refused for the recipient (refusesATransferToAnUnknownWallet):
+    // the key is looked up first, so a reused key is what the client hears.
+    @Test
+    void refusesAUsedKeySentToAnUnknownRecipientAsReused() {
+        var alice = anOwner();
+        service.open(alice);
+        var bob = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.transfer(alice, WalletId.newId(), money("10.00"), CORRELATION, key));
+        assertThat(service.get(alice).balance()).isEqualTo(money("15.00"));
+    }
+
+    // Checked before any lock, so the key is never looked up: a transfer to oneself is refused as such.
+    @Test
+    void refusesAUsedKeySentToTheOwnersOwnWalletAsASameWalletTransfer() {
+        var alice = anOwner();
+        var wallet = service.open(alice);
+        var bob = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(SameWalletTransferException.class)
+                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.00"), CORRELATION, key));
+        assertThat(service.get(alice).balance()).isEqualTo(money("15.00"));
+    }
+
+    // Refused under the locks, after the key was looked up: only a posting keeps its key.
+    @Test
+    void aRefusedTransferLeavesItsKeyFree() {
+        var alice = anOwner();
+        service.open(alice);
+        var bob = service.open(anOwner());
+        var key = aKey();
+        assertThatExceptionOfType(InsufficientFundsException.class)
+                .isThrownBy(() -> service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key));
+        service.deposit(alice, money("10.00"), CORRELATION, aKey());
+
+        var retry = service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThat(retry.balance()).isEqualTo(Money.ZERO);
+        assertThat(service.get(bob.owner()).balance()).isEqualTo(money("10.00"));
+    }
+
     @Test
     void eachTransferRunsInOneTransaction() {
         var alice = anOwner();
@@ -266,7 +411,7 @@ class WalletServiceTest {
         var recipient = service.open(anOwner());
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
 
-        service.transfer(alice, recipient.id(), money("10.50"), CORRELATION);
+        service.transfer(alice, recipient.id(), money("10.50"), CORRELATION, aKey());
 
         assertThat(transactions.count).isEqualTo(2);
     }
@@ -283,10 +428,10 @@ class WalletServiceTest {
         service.deposit(bob, money("10.00"), CORRELATION, aKey());
         var inOrder = Stream.of(aliceWallet, bobWallet).sorted().toList();
 
-        recordingService.transfer(alice, bobWallet, money("1.00"), CORRELATION);
+        recordingService.transfer(alice, bobWallet, money("1.00"), CORRELATION, aKey());
         assertThat(locks.taken).containsExactlyElementsOf(inOrder);
         locks.taken.clear();
-        recordingService.transfer(bob, aliceWallet, money("1.00"), CORRELATION);
+        recordingService.transfer(bob, aliceWallet, money("1.00"), CORRELATION, aKey());
         assertThat(locks.taken).containsExactlyElementsOf(inOrder);
     }
 
@@ -299,7 +444,7 @@ class WalletServiceTest {
         var depositsOnly = ledger.size();
 
         assertThatExceptionOfType(RecipientNotFoundException.class)
-                .isThrownBy(() -> service.transfer(alice, WalletId.newId(), money("10.50"), CORRELATION))
+                .isThrownBy(() -> service.transfer(alice, WalletId.newId(), money("10.50"), CORRELATION, aKey()))
                 .withMessage("The recipient wallet does not exist");
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
         assertThat(ledger.size()).isEqualTo(depositsOnly);
@@ -315,7 +460,7 @@ class WalletServiceTest {
         var before = transactions.count;
 
         assertThatExceptionOfType(SameWalletTransferException.class)
-                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.50"), CORRELATION));
+                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.50"), CORRELATION, aKey()));
         assertThat(transactions.count).isEqualTo(before);
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
     }
@@ -325,7 +470,7 @@ class WalletServiceTest {
         var recipient = service.open(anOwner());
 
         assertThatExceptionOfType(WalletNotFoundException.class)
-                .isThrownBy(() -> service.transfer(anOwner(), recipient.id(), money("10.50"), CORRELATION));
+                .isThrownBy(() -> service.transfer(anOwner(), recipient.id(), money("10.50"), CORRELATION, aKey()));
         assertThat(service.get(recipient.owner()).balance()).isEqualTo(Money.ZERO);
         assertThat(ledger.isEmpty()).isTrue();
     }
@@ -337,7 +482,7 @@ class WalletServiceTest {
         var recipient = service.open(anOwner());
 
         assertThatExceptionOfType(InsufficientFundsException.class)
-                .isThrownBy(() -> service.transfer(alice, recipient.id(), money("0.01"), CORRELATION));
+                .isThrownBy(() -> service.transfer(alice, recipient.id(), money("0.01"), CORRELATION, aKey()));
 
         assertThat(service.get(alice).balance()).isEqualTo(Money.ZERO);
         assertThat(service.get(recipient.owner()).balance()).isEqualTo(Money.ZERO);
@@ -352,7 +497,7 @@ class WalletServiceTest {
         var recipient = service.open(anOwner());
 
         assertThatExceptionOfType(InvalidAmountException.class)
-                .isThrownBy(() -> service.transfer(alice, recipient.id(), Money.ZERO, CORRELATION));
+                .isThrownBy(() -> service.transfer(alice, recipient.id(), Money.ZERO, CORRELATION, aKey()));
         assertThat(transactions.count).isZero();
     }
 

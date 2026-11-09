@@ -58,17 +58,23 @@ public final class WalletService {
     public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         // Checked before the lock too, so a request that can never succeed does not wait for it.
         amount.requirePositive();
-        return postOnce(owner, key, original -> original.isDepositOf(amount),
+        return post(owner, key, original -> original.isDepositOf(amount),
                 (wallet, at) -> wallet.deposit(amount, correlationId, at));
     }
 
-    public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId) {
+    public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
-        return post(owner, (wallet, at) -> wallet.withdraw(amount, correlationId, at));
+        return post(owner, key, original -> original.isWithdrawalOf(amount),
+                (wallet, at) -> wallet.withdraw(amount, correlationId, at));
     }
 
-    /** Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner sees it. */
-    public WalletTransaction transfer(OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId) {
+    /**
+     * Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner
+     * sees it. The key is looked up once both wallets are locked, so a retry gets its transfer back
+     * even when the balance would no longer cover it.
+     */
+    public WalletTransaction transfer(
+            OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
         // A wallet's id never changes, so it is read before the transaction, where no lock is held yet.
         var source = get(owner).id();
@@ -83,8 +89,10 @@ public final class WalletService {
                 wallets.lockById(id).ifPresent(wallet -> locked.put(id, wallet));
             }
             var sender = locked.get(source);
-            var target = Optional.ofNullable(locked.get(recipient)).orElseThrow(RecipientNotFoundException::new);
-            return record(sender, sender.transfer(amount, target, correlationId, now()));
+            return once(sender, key, original -> original.isTransferOf(recipient, amount), () -> {
+                var target = Optional.ofNullable(locked.get(recipient)).orElseThrow(RecipientNotFoundException::new);
+                return record(sender, sender.transfer(amount, target, correlationId, now()));
+            });
         });
     }
 
@@ -93,15 +101,7 @@ public final class WalletService {
         return ledger.find(get(owner).id(), id).orElseThrow(TransactionNotFoundException::new);
     }
 
-    private WalletTransaction post(OwnerId owner, BiFunction<Wallet, Instant, Posting> operation) {
-        return transactions.inTransaction(() -> {
-            var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
-            // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
-            return record(wallet, operation.apply(wallet, now()));
-        });
-    }
-
-    private WalletTransaction postOnce(
+    private WalletTransaction post(
             OwnerId owner,
             IdempotencyKey key,
             Predicate<WalletTransaction> sameRequest,

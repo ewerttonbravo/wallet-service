@@ -43,7 +43,7 @@ class LedgerConcurrencyTest {
         var owner = aWalletWith("100.00");
 
         var attempts = releasedTogether(IntStream.range(0, 32)
-                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.withdraw(owner, money("10.00"), CORRELATION))
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.withdraw(owner, money("10.00"), CORRELATION, aKey()))
                 .toList());
 
         assertThat(succeeded(attempts)).isEqualTo(10);
@@ -61,7 +61,7 @@ class LedgerConcurrencyTest {
         var attempts = releasedTogether(IntStream.range(0, 32)
                 .<Callable<WalletTransaction>>mapToObj(i -> i % 2 == 0
                         ? () -> wallets.deposit(owner, money("1.00"), CORRELATION, aKey())
-                        : () -> wallets.withdraw(owner, money("3.00"), CORRELATION))
+                        : () -> wallets.withdraw(owner, money("3.00"), CORRELATION, aKey()))
                 .toList());
 
         var withdrawals = succeeded(attempts) - 16;
@@ -86,6 +86,22 @@ class LedgerConcurrencyTest {
         assertReconciles(owner);
     }
 
+    /** Retries of a withdrawal of the whole balance: any second posting would be refused, failing its retry. */
+    @Test
+    void concurrentRetriesOfAWithdrawalPostItOnce() {
+        var owner = aWalletWith("20.00");
+        var key = aKey();
+
+        var attempts = releasedTogether(IntStream.range(0, 16)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.withdraw(owner, money("20.00"), CORRELATION, key))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(attempts.stream().map(Future::resultNow).distinct()).hasSize(1);
+        assertThat(wallets.get(owner).balance()).isEqualTo(Money.ZERO);
+        assertReconciles(owner);
+    }
+
     /**
      * Each transfer holds one wallet and waits for the other. Locked sender first, a transfer from A
      * to B and one from B to A would each hold what the other needs; locked in id order, they queue.
@@ -99,13 +115,33 @@ class LedgerConcurrencyTest {
 
         var attempts = releasedTogether(IntStream.range(0, 32)
                 .<Callable<WalletTransaction>>mapToObj(i -> i % 2 == 0
-                        ? () -> wallets.transfer(alice, bobWallet, money("1.00"), CORRELATION)
-                        : () -> wallets.transfer(bob, aliceWallet, money("1.00"), CORRELATION))
+                        ? () -> wallets.transfer(alice, bobWallet, money("1.00"), CORRELATION, aKey())
+                        : () -> wallets.transfer(bob, aliceWallet, money("1.00"), CORRELATION, aKey()))
                 .toList());
 
         assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
         assertThat(wallets.get(alice).balance()).isEqualTo(money("100.00"));
         assertThat(wallets.get(bob).balance()).isEqualTo(money("100.00"));
+        assertReconciles(alice);
+        assertReconciles(bob);
+    }
+
+    /** Retries of a transfer of the whole balance, each taking both locks: one transfer is posted. */
+    @Test
+    void concurrentRetriesOfATransferPostItOnce() {
+        var alice = aWalletWith("20.00");
+        var bob = aWalletWith("5.00");
+        var bobWallet = wallets.get(bob).id();
+        var key = aKey();
+
+        var attempts = releasedTogether(IntStream.range(0, 16)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("20.00"), CORRELATION, key))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(attempts.stream().map(Future::resultNow).distinct()).hasSize(1);
+        assertThat(wallets.get(alice).balance()).isEqualTo(Money.ZERO);
+        assertThat(wallets.get(bob).balance()).isEqualTo(money("25.00"));
         assertReconciles(alice);
         assertReconciles(bob);
     }
@@ -117,7 +153,7 @@ class LedgerConcurrencyTest {
         var bobWallet = wallets.get(bob).id();
 
         var attempts = releasedTogether(IntStream.range(0, 32)
-                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("10.00"), CORRELATION))
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("10.00"), CORRELATION, aKey()))
                 .toList());
 
         assertThat(succeeded(attempts)).isEqualTo(10);

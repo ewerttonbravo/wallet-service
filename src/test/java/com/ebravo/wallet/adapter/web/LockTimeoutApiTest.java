@@ -138,7 +138,8 @@ class LockTimeoutApiTest {
     }
 
     private MvcTestResult transfer(OwnerId owner, String recipient) {
-        return mvc.post().uri("/wallets/me/transfers").with(tokenOf(owner)).contentType(MediaType.APPLICATION_JSON)
+        return mvc.post().uri("/wallets/me/transfers").with(tokenOf(owner))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"recipientWalletId\": \"" + recipient + "\", \"amount\": \"4.00\"}").exchange();
     }
 

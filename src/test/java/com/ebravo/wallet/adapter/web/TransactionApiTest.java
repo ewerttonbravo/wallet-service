@@ -154,16 +154,56 @@ class TransactionApiTest {
         assertBalance(bob, "3.00");
     }
 
-    // The same deposit with a key is accepted (above), so only the missing key explains the refusal.
+    // The whole balance is withdrawn: had the retry been posted again, it would have been refused.
     @Test
-    void refusesADepositWithoutIdempotencyKey() {
+    void replaysAWithdrawalSentAgainWithTheSameKey() throws Exception {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, amount("10.50"));
+        var first = post(owner, WITHDRAWALS, "withdrawal-1", amount("10.50"));
+
+        var retry = post(owner, WITHDRAWALS, "withdrawal-1", amount("10.50"));
+
+        assertThat(retry).hasStatus(HttpStatus.CREATED)
+                .hasHeader(HttpHeaders.LOCATION, first.getResponse().getHeader(HttpHeaders.LOCATION));
+        assertThat(retry).bodyJson().isStrictlyEqualTo(first.getResponse().getContentAsString());
+        assertBalance(owner, "0.00");
+    }
+
+    // Enough balance for both: only the key explains the refusal.
+    @Test
+    void refusesAWithdrawalKeyReusedForAnotherAmount() {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, amount("20.00"));
+        post(owner, WITHDRAWALS, "withdrawal-1", amount("5.00"));
+
+        var reused = post(owner, WITHDRAWALS, "withdrawal-1", amount("5.01"));
+
+        assertProblem(reused, HttpStatus.UNPROCESSABLE_CONTENT, "The Idempotency-Key was already used for another request");
+        assertBalance(owner, "15.00");
+    }
+
+    // The same posting with a key is accepted (above), so only the missing key explains the refusal.
+    @ParameterizedTest
+    @CsvSource({DEPOSITS, WITHDRAWALS})
+    void refusesAPostingWithoutIdempotencyKey(String path) {
         var owner = aWalletOwner();
         post(owner, DEPOSITS, amount("10.00"));
 
-        var result = mvc.post().uri(DEPOSITS).with(tokenOf(owner))
+        var result = mvc.post().uri(path).with(tokenOf(owner))
                 .contentType(MediaType.APPLICATION_JSON).content(amount("10.00")).exchange();
 
         assertProblem(result, HttpStatus.BAD_REQUEST, "Idempotency-Key header is required");
+        assertBalance(owner, "10.00");
+    }
+
+    // Every malformed form is pinned on deposits (below); this shows withdrawals check the same format.
+    @Test
+    void refusesAMalformedIdempotencyKeyOnAWithdrawal() {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, amount("10.00"));
+
+        assertProblem(post(owner, WITHDRAWALS, "has space", amount("10.00")), HttpStatus.BAD_REQUEST,
+                "Idempotency-Key must be 1 to 64 letters, digits, '.', '_', ':' or '-'");
         assertBalance(owner, "10.00");
     }
 
