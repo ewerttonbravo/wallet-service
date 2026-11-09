@@ -2,6 +2,7 @@ package com.ebravo.wallet.adapter.web;
 
 import com.ebravo.wallet.application.WalletService;
 import com.ebravo.wallet.domain.CorrelationId;
+import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.WalletTransaction;
@@ -51,7 +52,9 @@ class WalletController {
             @AuthenticationPrincipal Jwt token,
             @RequestAttribute(CorrelationIdFilter.ATTRIBUTE) CorrelationId correlationId,
             @RequestBody AmountRequest request) {
-        return posted(wallets.deposit(ownerOf(token), request.toMoney(), correlationId));
+        // Every request is a new deposit until the API takes the caller's key.
+        var key = new IdempotencyKey(UUID.randomUUID().toString());
+        return posted(wallets.deposit(ownerOf(token), request.toMoney(), correlationId, key));
     }
 
     @PostMapping("/me/withdrawals")

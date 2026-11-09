@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.config;
 
+import com.ebravo.wallet.application.IdempotencyKeys;
 import com.ebravo.wallet.application.Ledger;
 import com.ebravo.wallet.application.Transactions;
 import com.ebravo.wallet.application.WalletRepository;
@@ -18,7 +19,8 @@ class ApplicationConfiguration {
     }
 
     @Bean
-    WalletService walletService(WalletRepository wallets, Ledger ledger, Transactions transactions, Clock clock) {
-        return new WalletService(wallets, ledger, transactions, clock);
+    WalletService walletService(
+            WalletRepository wallets, Ledger ledger, IdempotencyKeys keys, Transactions transactions, Clock clock) {
+        return new WalletService(wallets, ledger, keys, transactions, clock);
     }
 }
