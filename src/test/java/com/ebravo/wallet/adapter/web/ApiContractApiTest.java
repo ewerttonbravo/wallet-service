@@ -8,6 +8,7 @@ import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,18 @@ class ApiContractApiTest {
 
         assertThat(parsed.getMessages()).isEmpty();
         assertThat(parsed.getOpenAPI().getOpenapi()).isEqualTo("3.1.0");
+    }
+
+    /** The validator ignores parameters declared on a path item, so they would go unchecked there. */
+    @Test
+    void declaresParametersOnOperationsOnly() throws IOException {
+        var paths = parse().getOpenAPI().getPaths();
+
+        assertThat(paths).isNotEmpty();
+        assertThat(paths.entrySet())
+                .filteredOn(path -> path.getValue().getParameters() != null)
+                .extracting(Map.Entry::getKey)
+                .isEmpty();
     }
 
     /** A route no test calls would escape the check on exchanges; this one sees every route. */
