@@ -97,6 +97,20 @@ class TransactionApiTest {
         assertBalance(owner, "10.50");
     }
 
+    // The header traces this request; the body is the deposit as first posted, under its own id.
+    @Test
+    void aReplayTracesItsOwnRequestAndReturnsTheOriginalCorrelationId() {
+        var owner = aWalletOwner();
+        mvc.post().uri(DEPOSITS).with(tokenOf(owner)).header(IDEMPOTENCY_KEY, "deposit-1").header(CORRELATION, "req-1")
+                .contentType(MediaType.APPLICATION_JSON).content(amount("10.50")).exchange();
+
+        var retry = mvc.post().uri(DEPOSITS).with(tokenOf(owner)).header(IDEMPOTENCY_KEY, "deposit-1").header(CORRELATION, "req-2")
+                .contentType(MediaType.APPLICATION_JSON).content(amount("10.50")).exchange();
+
+        assertThat(retry).hasStatus(HttpStatus.CREATED).hasHeader(CORRELATION, "req-2");
+        assertThat(retry).bodyJson().extractingPath("$.correlationId").isEqualTo("req-1");
+    }
+
     // Bob's key is Alice's, yet he gets a deposit of his own: keys never reach another user's wallet.
     @Test
     void anotherUsersKeyNeverReplaysTheirDeposit() {
