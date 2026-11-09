@@ -11,7 +11,14 @@ create table idempotency_key (
         references ledger_entry (transaction_id, wallet_id)
 );
 
+create function reject_idempotency_key_change() returns trigger language plpgsql as $$
+begin
+    raise exception 'Idempotency keys are append-only: % on % is not allowed', tg_op, tg_table_name
+        using errcode = 'integrity_constraint_violation';
+end
+$$;
+
 create trigger idempotency_key_append_only before update or delete on idempotency_key
-    for each row execute function reject_ledger_change();
+    for each row execute function reject_idempotency_key_change();
 create trigger idempotency_key_no_truncate before truncate on idempotency_key
-    for each statement execute function reject_ledger_change();
+    for each statement execute function reject_idempotency_key_change();
