@@ -539,6 +539,38 @@ class WalletServiceTest {
                 .isThrownBy(() -> service.transaction(anOwner(), TransactionId.newId()));
     }
 
+    @Test
+    void listsTheOwnersTransactionsNewestFirst() {
+        var owner = anOwner();
+        service.open(owner);
+        var deposit = service.deposit(owner, money("10.50"), CORRELATION, aKey());
+        var withdrawal = service.withdraw(owner, money("0.50"), CORRELATION, aKey());
+
+        var page = service.transactions(owner, new PageRequest(0, 20));
+
+        assertThat(page.transactions()).containsExactly(withdrawal, deposit);
+        assertThat(page.total()).isEqualTo(2);
+    }
+
+    // Bob's own deposit is listed, so not seeing Alice's is not an empty answer.
+    @Test
+    void listsNoTransactionOfAnotherOwner() {
+        var alice = anOwner();
+        var bob = anOwner();
+        service.open(alice);
+        service.open(bob);
+        service.deposit(alice, money("10.50"), CORRELATION, aKey());
+        var his = service.deposit(bob, money("1.00"), CORRELATION, aKey());
+
+        assertThat(service.transactions(bob, new PageRequest(0, 20)).transactions()).containsExactly(his);
+    }
+
+    @Test
+    void reportsAListingWithoutWallet() {
+        assertThatExceptionOfType(WalletNotFoundException.class)
+                .isThrownBy(() -> service.transactions(anOwner(), new PageRequest(0, 20)));
+    }
+
     private static Money money(String amount) {
         return new Money(new BigDecimal(amount));
     }
