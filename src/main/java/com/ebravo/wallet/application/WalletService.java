@@ -121,18 +121,19 @@ public final class WalletService {
     private WalletTransaction once(
             Wallet wallet, IdempotencyKey key, Predicate<WalletTransaction> sameRequest, Supplier<WalletTransaction> posting) {
         return keys.find(wallet.id(), key)
-                .map(posted -> ledger.find(wallet.id(), posted).orElseThrow())
-                .map(original -> {
-                    if (!sameRequest.test(original)) {
-                        throw new IdempotencyKeyReusedException();
-                    }
-                    return original;
-                })
+                .map(posted -> replay(ledger.find(wallet.id(), posted).orElseThrow(), sameRequest))
                 .orElseGet(() -> {
                     var posted = posting.get();
                     keys.record(wallet.id(), key, posted.id());
                     return posted;
                 });
+    }
+
+    private static WalletTransaction replay(WalletTransaction original, Predicate<WalletTransaction> sameRequest) {
+        if (!sameRequest.test(original)) {
+            throw new IdempotencyKeyReusedException();
+        }
+        return original;
     }
 
     /** Stores every changed balance and the transaction that explains them, in the caller's transaction. */
