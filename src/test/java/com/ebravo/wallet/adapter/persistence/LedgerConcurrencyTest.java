@@ -126,6 +126,26 @@ class LedgerConcurrencyTest {
         assertReconciles(bob);
     }
 
+    /** Retries of a transfer of the whole balance, each taking both locks: one transfer is posted. */
+    @Test
+    void concurrentRetriesOfATransferPostItOnce() {
+        var alice = aWalletWith("20.00");
+        var bob = aWalletWith("5.00");
+        var bobWallet = wallets.get(bob).id();
+        var key = aKey();
+
+        var attempts = releasedTogether(IntStream.range(0, 16)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("20.00"), CORRELATION, key))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(attempts.stream().map(Future::resultNow).distinct()).hasSize(1);
+        assertThat(wallets.get(alice).balance()).isEqualTo(Money.ZERO);
+        assertThat(wallets.get(bob).balance()).isEqualTo(money("25.00"));
+        assertReconciles(alice);
+        assertReconciles(bob);
+    }
+
     @Test
     void concurrentTransfersNeverOverdrawTheSender() {
         var alice = aWalletWith("100.00");
