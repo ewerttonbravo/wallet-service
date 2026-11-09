@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,8 +51,10 @@ class WalletController {
     ResponseEntity<TransactionResponse> deposit(
             @AuthenticationPrincipal Jwt token,
             @RequestAttribute(CorrelationIdFilter.ATTRIBUTE) CorrelationId correlationId,
+            @RequestHeader(name = RequestFields.IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @RequestBody AmountRequest request) {
-        return posted(wallets.deposit(ownerOf(token), request.toMoney(), correlationId));
+        return posted(wallets.deposit(
+                ownerOf(token), request.toMoney(), correlationId, RequestFields.idempotencyKey(idempotencyKey)));
     }
 
     @PostMapping("/me/withdrawals")

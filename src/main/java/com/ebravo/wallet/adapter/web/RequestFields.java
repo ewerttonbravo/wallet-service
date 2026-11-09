@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.web;
 
+import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.WalletId;
 import java.math.BigDecimal;
@@ -14,6 +15,8 @@ import org.springframework.web.ErrorResponseException;
  * Whether a well-formed value is acceptable is decided by the domain.
  */
 final class RequestFields {
+
+    static final String IDEMPOTENCY_KEY = "Idempotency-Key";
 
     // Bounds the work done on untrusted input; the largest storable amount has 20 characters.
     private static final int MAX_AMOUNT_LENGTH = 32;
@@ -36,6 +39,19 @@ final class RequestFields {
             throw malformed(field + " must be a wallet id such as \"0b6a9c7e-3f1d-4e2a-9c5b-7d8e1f2a3b4c\"");
         }
         return new WalletId(UUID.fromString(value));
+    }
+
+    /** Checked here rather than by Spring, so a missing header gets the same Problem Details as a malformed one. */
+    static IdempotencyKey idempotencyKey(String header) {
+        if (header == null) {
+            throw malformed(IDEMPOTENCY_KEY + " header is required");
+        }
+        try {
+            return new IdempotencyKey(header);
+        } catch (IllegalArgumentException invalid) {
+            // The domain's message is fixed text: the rejected value is never echoed back.
+            throw malformed(invalid.getMessage());
+        }
     }
 
     private static ErrorResponseException malformed(String detail) {

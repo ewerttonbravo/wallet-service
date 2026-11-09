@@ -1,10 +1,12 @@
 package com.ebravo.wallet.adapter.persistence;
 
+import static com.ebravo.wallet.Fixtures.aKey;
 import static com.ebravo.wallet.Fixtures.anOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import com.ebravo.wallet.IntegrationTest;
+import com.ebravo.wallet.application.IdempotencyKeys;
 import com.ebravo.wallet.application.Ledger;
 import com.ebravo.wallet.application.Transactions;
 import com.ebravo.wallet.application.WalletRepository;
@@ -39,6 +41,9 @@ class PostingAtomicityTest {
     private Ledger ledger;
 
     @Autowired
+    private IdempotencyKeys keys;
+
+    @Autowired
     private Transactions transactions;
 
     @Autowired
@@ -50,11 +55,11 @@ class PostingAtomicityTest {
     // The same wiring with a ledger that does not fail posts both writes, so the setup itself writes.
     @Test
     void aPostingCommitsTheBalanceAndTheLedgerTogether() {
-        var service = new WalletService(wallets, ledger, transactions, clock);
+        var service = new WalletService(wallets, ledger, keys, transactions, clock);
         var owner = anOwner();
         service.open(owner);
 
-        service.deposit(owner, money("10.00"), CORRELATION);
+        service.deposit(owner, money("10.00"), CORRELATION, aKey());
 
         assertThat(service.get(owner).balance()).isEqualTo(money("10.00"));
         assertThat(entriesOf(service, owner)).isEqualTo(1);
@@ -62,12 +67,12 @@ class PostingAtomicityTest {
 
     @Test
     void aLedgerFailureAfterTheWritesRollsTheBalanceBack() {
-        var service = new WalletService(wallets, new FailingAfterAppend(ledger), transactions, clock);
+        var service = new WalletService(wallets, new FailingAfterAppend(ledger), keys, transactions, clock);
         var owner = anOwner();
         service.open(owner);
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> service.deposit(owner, money("10.00"), CORRELATION))
+                .isThrownBy(() -> service.deposit(owner, money("10.00"), CORRELATION, aKey()))
                 .withMessage("ledger failed after writing");
 
         assertThat(service.get(owner).balance()).isEqualTo(Money.ZERO);
@@ -76,12 +81,12 @@ class PostingAtomicityTest {
 
     @Test
     void aLedgerFailureAfterATransferRollsBothBalancesBack() {
-        var service = new WalletService(wallets, new FailingAfterAppend(ledger), transactions, clock);
+        var service = new WalletService(wallets, new FailingAfterAppend(ledger), keys, transactions, clock);
         var alice = anOwner();
         var bob = anOwner();
         service.open(alice);
         var recipient = service.open(bob);
-        new WalletService(wallets, ledger, transactions, clock).deposit(alice, money("10.00"), CORRELATION);
+        new WalletService(wallets, ledger, keys, transactions, clock).deposit(alice, money("10.00"), CORRELATION, aKey());
 
         assertThatIllegalStateException()
                 .isThrownBy(() -> service.transfer(alice, recipient.id(), money("4.00"), CORRELATION))

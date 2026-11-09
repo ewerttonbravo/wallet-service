@@ -1,6 +1,7 @@
 package com.ebravo.wallet.application;
 
 import com.ebravo.wallet.domain.CorrelationId;
+import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Posting;
@@ -19,18 +20,22 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class WalletService {
 
     private final WalletRepository wallets;
     private final Ledger ledger;
+    private final IdempotencyKeys keys;
     private final Transactions transactions;
     private final Clock clock;
 
-    public WalletService(WalletRepository wallets, Ledger ledger, Transactions transactions, Clock clock) {
+    public WalletService(
+            WalletRepository wallets, Ledger ledger, IdempotencyKeys keys, Transactions transactions, Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
+        this.keys = keys;
         this.transactions = transactions;
         this.clock = clock;
     }
@@ -47,10 +52,11 @@ public final class WalletService {
         return wallets.findByOwner(owner).orElseThrow(WalletNotFoundException::new);
     }
 
-    public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId) {
+    /** A retry with the key of a deposit already posted gets that deposit back, and posts nothing. */
+    public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         // Checked before the lock too, so a request that can never succeed does not wait for it.
         amount.requirePositive();
-        return post(owner, (wallet, at) -> wallet.deposit(amount, correlationId, at));
+        return postOnce(owner, key, (wallet, at) -> wallet.deposit(amount, correlationId, at));
     }
 
     public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId) {
@@ -90,6 +96,29 @@ public final class WalletService {
             // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
             return record(wallet, operation.apply(wallet, now()));
         });
+    }
+
+    private WalletTransaction postOnce(OwnerId owner, IdempotencyKey key, BiFunction<Wallet, Instant, Posting> operation) {
+        return transactions.inTransaction(() -> {
+            var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
+            // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
+            return once(wallet, key, () -> record(wallet, operation.apply(wallet, now())));
+        });
+    }
+
+    /**
+     * Must run under the lock of the wallet that sent the key: a retry sent while the first request
+     * is still posting waits for it there, then finds its key. A refused posting records no key, so
+     * its retry runs again.
+     */
+    private WalletTransaction once(Wallet wallet, IdempotencyKey key, Supplier<WalletTransaction> posting) {
+        return keys.find(wallet.id(), key)
+                .map(posted -> ledger.find(wallet.id(), posted).orElseThrow())
+                .orElseGet(() -> {
+                    var posted = posting.get();
+                    keys.record(wallet.id(), key, posted.id());
+                    return posted;
+                });
     }
 
     /** Stores every changed balance and the transaction that explains them, in the caller's transaction. */

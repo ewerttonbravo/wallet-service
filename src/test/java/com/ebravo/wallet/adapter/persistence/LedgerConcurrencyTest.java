@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.persistence;
 
+import static com.ebravo.wallet.Fixtures.aKey;
 import static com.ebravo.wallet.Fixtures.anOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,13 +60,29 @@ class LedgerConcurrencyTest {
 
         var attempts = releasedTogether(IntStream.range(0, 32)
                 .<Callable<WalletTransaction>>mapToObj(i -> i % 2 == 0
-                        ? () -> wallets.deposit(owner, money("1.00"), CORRELATION)
+                        ? () -> wallets.deposit(owner, money("1.00"), CORRELATION, aKey())
                         : () -> wallets.withdraw(owner, money("3.00"), CORRELATION))
                 .toList());
 
         var withdrawals = succeeded(attempts) - 16;
         var withdrawn = new Money(new BigDecimal("3.00").multiply(BigDecimal.valueOf(withdrawals)));
         assertThat(wallets.get(owner).balance()).isEqualTo(money("36.00").subtract(withdrawn));
+        assertReconciles(owner);
+    }
+
+    /** A client retrying a deposit it got no answer for, many times at once: one deposit is posted. */
+    @Test
+    void concurrentRetriesOfADepositPostItOnce() {
+        var owner = aWalletWith("20.00");
+        var key = aKey();
+
+        var attempts = releasedTogether(IntStream.range(0, 16)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.deposit(owner, money("5.00"), CORRELATION, key))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(attempts.stream().map(Future::resultNow).distinct()).hasSize(1);
+        assertThat(wallets.get(owner).balance()).isEqualTo(money("25.00"));
         assertReconciles(owner);
     }
 
@@ -116,7 +133,7 @@ class LedgerConcurrencyTest {
     private OwnerId aWalletWith(String balance) {
         var owner = anOwner();
         wallets.open(owner);
-        wallets.deposit(owner, money(balance), CORRELATION);
+        wallets.deposit(owner, money(balance), CORRELATION, aKey());
         return owner;
     }
 
