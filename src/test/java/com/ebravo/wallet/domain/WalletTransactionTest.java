@@ -45,6 +45,22 @@ class WalletTransactionTest {
         assertThat(transaction(TransactionType.TRANSFER, "10.50").isDepositOf(money("10.50"))).isFalse();
     }
 
+    @Test
+    void aWithdrawalIsTheWithdrawalOfItsOwnAmount() {
+        assertThat(transaction(TransactionType.WITHDRAWAL, "-10.50").isWithdrawalOf(money("10.50"))).isTrue();
+    }
+
+    @Test
+    void aWithdrawalIsNotTheWithdrawalOfAnotherAmount() {
+        assertThat(transaction(TransactionType.WITHDRAWAL, "-10.50").isWithdrawalOf(money("10.51"))).isFalse();
+    }
+
+    // Same signed amount as the withdrawal asked for, so only the type can tell them apart.
+    @Test
+    void anOutgoingTransferIsNotAWithdrawal() {
+        assertThat(transaction(TransactionType.TRANSFER, "-10.50").isWithdrawalOf(money("10.50"))).isFalse();
+    }
+
     private static WalletTransaction transaction(TransactionType type, String amount) {
         return new WalletTransaction(TransactionId.newId(), type, money(amount), money(amount), Optional.empty(),
                 new CorrelationId("request-1"), Instant.parse("2026-11-08T10:15:30.123456Z"));
