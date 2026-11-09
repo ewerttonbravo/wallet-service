@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.persistence;
 
+import static com.ebravo.wallet.Fixtures.aKey;
 import static com.ebravo.wallet.Fixtures.anOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,7 +60,7 @@ class LedgerConcurrencyTest {
 
         var attempts = releasedTogether(IntStream.range(0, 32)
                 .<Callable<WalletTransaction>>mapToObj(i -> i % 2 == 0
-                        ? () -> wallets.deposit(owner, money("1.00"), CORRELATION)
+                        ? () -> wallets.deposit(owner, money("1.00"), CORRELATION, aKey())
                         : () -> wallets.withdraw(owner, money("3.00"), CORRELATION))
                 .toList());
 
@@ -116,7 +117,7 @@ class LedgerConcurrencyTest {
     private OwnerId aWalletWith(String balance) {
         var owner = anOwner();
         wallets.open(owner);
-        wallets.deposit(owner, money(balance), CORRELATION);
+        wallets.deposit(owner, money(balance), CORRELATION, aKey());
         return owner;
     }
 
