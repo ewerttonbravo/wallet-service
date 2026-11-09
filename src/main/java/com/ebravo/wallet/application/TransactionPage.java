@@ -15,8 +15,9 @@ public record TransactionPage(List<WalletTransaction> transactions, PageRequest 
         return Math.ceilDiv(total, request.size());
     }
 
-    /** @return empty on the last page, and past it */
+    /** @return empty on the last page, past it, and on the last page number an int can hold */
     public Optional<PageRequest> next() {
-        return request.number() + 1L < totalPages() ? Optional.of(request.next()) : Optional.empty();
+        var hasNext = request.number() < Integer.MAX_VALUE && request.number() + 1L < totalPages();
+        return hasNext ? Optional.of(request.next()) : Optional.empty();
     }
 }

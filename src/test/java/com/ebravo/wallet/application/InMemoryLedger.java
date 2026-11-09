@@ -14,16 +14,21 @@ public final class InMemoryLedger implements Ledger {
     private final List<LedgerTransaction> transactions = new CopyOnWriteArrayList<>();
 
     @Override
-    public void append(LedgerTransaction transaction) {
+    public synchronized void append(LedgerTransaction transaction) {
+        // As the database's primary key does.
+        if (find(transaction.id()).isPresent()) {
+            throw new IllegalStateException("Transaction " + transaction.id() + " is already in the ledger");
+        }
         transactions.add(transaction);
     }
 
     @Override
     public Optional<WalletTransaction> find(WalletId wallet, TransactionId id) {
-        return transactions.stream()
-                .filter(transaction -> transaction.id().equals(id))
-                .findFirst()
-                .flatMap(transaction -> transaction.viewFor(wallet));
+        return find(id).flatMap(transaction -> transaction.viewFor(wallet));
+    }
+
+    private Optional<LedgerTransaction> find(TransactionId id) {
+        return transactions.stream().filter(transaction -> transaction.id().equals(id)).findFirst();
     }
 
     @Override
