@@ -21,7 +21,7 @@ jobs:
   # called by the API collection with tokens fetched from the host side.
   compose:
     runs-on: ubuntu-latest
-    timeout-minutes: 20 # an image build from scratch takes about five; a stuck health check fails fast
+    timeout-minutes: 20 # the whole job takes about two; a stuck build or health check fails fast
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
