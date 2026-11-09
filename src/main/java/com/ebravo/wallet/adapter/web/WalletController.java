@@ -2,7 +2,6 @@ package com.ebravo.wallet.adapter.web;
 
 import com.ebravo.wallet.application.WalletService;
 import com.ebravo.wallet.domain.CorrelationId;
-import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.WalletTransaction;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -51,10 +51,10 @@ class WalletController {
     ResponseEntity<TransactionResponse> deposit(
             @AuthenticationPrincipal Jwt token,
             @RequestAttribute(CorrelationIdFilter.ATTRIBUTE) CorrelationId correlationId,
+            @RequestHeader(name = RequestFields.IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @RequestBody AmountRequest request) {
-        // Every request is a new deposit until the API takes the caller's key.
-        var key = new IdempotencyKey(UUID.randomUUID().toString());
-        return posted(wallets.deposit(ownerOf(token), request.toMoney(), correlationId, key));
+        return posted(wallets.deposit(
+                ownerOf(token), request.toMoney(), correlationId, RequestFields.idempotencyKey(idempotencyKey)));
     }
 
     @PostMapping("/me/withdrawals")
