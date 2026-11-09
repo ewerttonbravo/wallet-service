@@ -123,6 +123,19 @@ class TransactionApiTest {
         assertBalance(owner, "10.50");
     }
 
+    // Amounts are compared as money, not as text: a second posting would have doubled the balance.
+    @Test
+    void aReplayMayWriteTheSameAmountDifferently() throws Exception {
+        var owner = aWalletOwner();
+        var first = post(owner, DEPOSITS, "deposit-1", amount("10.5"));
+
+        var retry = post(owner, DEPOSITS, "deposit-1", amount("10.50"));
+
+        assertThat(retry).hasStatus(HttpStatus.CREATED);
+        assertThat(retry).bodyJson().isStrictlyEqualTo(first.getResponse().getContentAsString());
+        assertBalance(owner, "10.50");
+    }
+
     // Bob's key is Alice's, yet he gets a deposit of his own: keys never reach another user's wallet.
     @Test
     void anotherUsersKeyNeverReplaysTheirDeposit() {
