@@ -89,13 +89,14 @@ AT=$(curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/wallets/me
 curl -G -H "Authorization: Bearer $TOKEN" --data-urlencode "at=$AT" http://localhost:8080/wallets/me/balance
 ```
 
-Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`; for 9000, change the port of `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml` and of `issuer` in `bruno/environments/local.bru` as well. Stop everything with `docker compose down -v`.
+Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`, and the URLs that name it: for 8080, `api` in `bruno/environments/local.bru` and the examples above; for 9000, `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml`, `issuer` and `untrustedIssuer` in `bruno/environments/local.bru`, and the examples above. Stop everything with `docker compose down -v`.
 
 ### Run from source
 
-To run the service from source while developing (JDK 25 required), start only PostgreSQL and the issuer and give the service its database and issuer through environment variables; it refuses to start without them:
+To run the service from source while developing (JDK 25 required), stop the service container if it runs, start only PostgreSQL and the issuer, and give the service its database and issuer through environment variables; it refuses to start without them:
 
 ```sh
+docker compose stop wallet-service
 docker compose up -d --wait postgres issuer
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
 export SPRING_DATASOURCE_USERNAME=wallet
