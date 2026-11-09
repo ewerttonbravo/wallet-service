@@ -183,6 +183,7 @@ class TransferApiTest {
         var walletOwner = new WalletOwner(owner, read(opened, "$.id"));
         if (!balance.equals("0.00")) {
             assertThat(mvc.post().uri("/wallets/me/deposits").with(tokenOf(owner)).contentType(MediaType.APPLICATION_JSON)
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
                     .content("{\"amount\": \"" + balance + "\"}")).hasStatus(HttpStatus.CREATED);
         }
         return walletOwner;

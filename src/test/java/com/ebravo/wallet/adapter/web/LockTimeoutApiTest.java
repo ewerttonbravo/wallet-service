@@ -9,6 +9,7 @@ import com.ebravo.wallet.domain.OwnerId;
 import com.jayway.jsonpath.JsonPath;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
@@ -45,19 +46,21 @@ class LockTimeoutApiTest {
 
     /**
      * Another transaction holds the wallet's row. The deposit gives up instead of waiting forever,
-     * and succeeds once the row is released: so the refusal came from the lock, and changed nothing.
+     * and the same request, key included, succeeds once the row is released: so the refusal came
+     * from the lock, changed nothing and left the key free.
      */
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void answersServiceUnavailableWhileTheWalletStaysLocked() throws SQLException {
         var owner = anOwner();
+        var key = UUID.randomUUID().toString();
         assertThat(mvc.post().uri("/wallets").with(tokenOf(owner))).hasStatus(HttpStatus.CREATED);
 
         try (var holder = dataSource.getConnection()) {
             holder.setAutoCommit(false);
             lockWalletOf(owner, holder);
 
-            assertThat(deposit(owner))
+            assertThat(deposit(owner, "10.00", key))
                     .hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
                     .hasHeader(HttpHeaders.RETRY_AFTER, "1")
                     .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
@@ -65,7 +68,7 @@ class LockTimeoutApiTest {
             holder.rollback();
         }
 
-        assertThat(deposit(owner)).hasStatus(HttpStatus.CREATED)
+        assertThat(deposit(owner, "10.00", key)).hasStatus(HttpStatus.CREATED)
                 .bodyJson().extractingPath("$.balance").isEqualTo("10.00");
     }
 
@@ -126,7 +129,11 @@ class LockTimeoutApiTest {
     }
 
     private MvcTestResult deposit(OwnerId owner, String amount) {
-        return mvc.post().uri("/wallets/me/deposits").with(tokenOf(owner))
+        return deposit(owner, amount, UUID.randomUUID().toString());
+    }
+
+    private MvcTestResult deposit(OwnerId owner, String amount, String idempotencyKey) {
+        return mvc.post().uri("/wallets/me/deposits").with(tokenOf(owner)).header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"amount\": \"" + amount + "\"}").exchange();
     }
 

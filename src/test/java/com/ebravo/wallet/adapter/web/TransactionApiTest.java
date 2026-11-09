@@ -13,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -32,6 +33,7 @@ class TransactionApiTest {
     private static final String DEPOSITS = "/wallets/me/deposits";
     private static final String WITHDRAWALS = "/wallets/me/withdrawals";
     private static final String CORRELATION = "X-Correlation-Id";
+    private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
     private static final String ISO_8601_UTC = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z";
     private static final String LOCATION = "/wallets/me/transactions/\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}";
 
@@ -43,6 +45,7 @@ class TransactionApiTest {
         var owner = aWalletOwner();
 
         var deposit = mvc.post().uri(DEPOSITS).with(tokenOf(owner)).header(CORRELATION, "req-1")
+                .header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON).content(amount("10.50")).exchange();
 
         assertThat(deposit).hasStatus(HttpStatus.CREATED).hasHeader(CORRELATION, "req-1");
@@ -78,6 +81,64 @@ class TransactionApiTest {
         assertThat(mvc.get().uri(deposit.getResponse().getHeader(HttpHeaders.LOCATION)).with(tokenOf(owner)))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo(deposit.getResponse().getContentAsString());
+    }
+
+    // The balance shows the deposit was posted once: a second posting would have doubled it.
+    @Test
+    void replaysADepositSentAgainWithTheSameKey() throws Exception {
+        var owner = aWalletOwner();
+        var first = post(owner, DEPOSITS, "deposit-1", amount("10.50"));
+
+        var retry = post(owner, DEPOSITS, "deposit-1", amount("10.50"));
+
+        assertThat(retry).hasStatus(HttpStatus.CREATED)
+                .hasHeader(HttpHeaders.LOCATION, first.getResponse().getHeader(HttpHeaders.LOCATION));
+        assertThat(retry).bodyJson().isStrictlyEqualTo(first.getResponse().getContentAsString());
+        assertBalance(owner, "10.50");
+    }
+
+    // Bob's key is Alice's, yet he gets a deposit of his own: keys never reach another user's wallet.
+    @Test
+    void anotherUsersKeyNeverReplaysTheirDeposit() {
+        var alice = aWalletOwner();
+        var bob = aWalletOwner();
+        var aliceDeposit = post(alice, DEPOSITS, "shared-key", amount("10.50"));
+
+        var bobDeposit = post(bob, DEPOSITS, "shared-key", amount("3.00"));
+
+        assertThat(bobDeposit).hasStatus(HttpStatus.CREATED);
+        assertThat(bobDeposit).bodyJson().isLenientlyEqualTo("""
+                {"amount": "3.00", "balance": "3.00"}
+                """);
+        assertThat(id(bobDeposit)).isNotEqualTo(id(aliceDeposit));
+        assertBalance(alice, "10.50");
+        assertBalance(bob, "3.00");
+    }
+
+    // The same deposit with a key is accepted (above), so only the missing key explains the refusal.
+    @Test
+    void refusesADepositWithoutIdempotencyKey() {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, amount("10.00"));
+
+        var result = mvc.post().uri(DEPOSITS).with(tokenOf(owner))
+                .contentType(MediaType.APPLICATION_JSON).content(amount("10.00")).exchange();
+
+        assertProblem(result, HttpStatus.BAD_REQUEST, "Idempotency-Key header is required");
+        assertBalance(owner, "10.00");
+    }
+
+    // The detail is fixed text: a rejected key is never echoed back.
+    @ParameterizedTest
+    @ValueSource(strings = {"", "has space", "\"quoted\"", "a/b",
+            "0123456789012345678901234567890123456789012345678901234567890123x"})
+    void refusesAMalformedIdempotencyKey(String key) {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, amount("10.00"));
+
+        assertProblem(post(owner, DEPOSITS, key, amount("10.00")), HttpStatus.BAD_REQUEST,
+                "Idempotency-Key must be 1 to 64 letters, digits, '.', '_', ':' or '-'");
+        assertBalance(owner, "10.00");
     }
 
     // A transfer names its counterparty (TransferApiTest); money from outside the service has none.
@@ -206,8 +267,14 @@ class TransactionApiTest {
         return owner;
     }
 
+    /** Each call is a new request: it carries a fresh idempotency key. */
     private MvcTestResult post(OwnerId owner, String path, String body) {
-        return mvc.post().uri(path).with(tokenOf(owner)).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+        return post(owner, path, UUID.randomUUID().toString(), body);
+    }
+
+    private MvcTestResult post(OwnerId owner, String path, String idempotencyKey, String body) {
+        return mvc.post().uri(path).with(tokenOf(owner)).header(IDEMPOTENCY_KEY, idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
     }
 
     private void assertBalance(OwnerId owner, String balance) {
