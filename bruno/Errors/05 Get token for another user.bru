@@ -17,6 +17,11 @@ body:form-urlencoded {
   scope: {{audience}}
 }
 
+assert {
+  res.status: eq 200
+  res.body.access_token: isString
+}
+
 script:post-response {
   bru.setVar("otherToken", res.getBody().access_token);
 }

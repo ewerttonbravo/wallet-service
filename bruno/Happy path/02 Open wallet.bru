@@ -13,3 +13,9 @@ post {
 auth:bearer {
   token: {{token}}
 }
+
+tests {
+  test("the user has a wallet (opened now, or before)", function () {
+    expect([201, 409]).to.include(res.getStatus());
+  });
+}

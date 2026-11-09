@@ -17,6 +17,24 @@ body:form-urlencoded {
   scope: {{audience}}
 }
 
+assert {
+  res.status: eq 200
+  res.body.access_token: isString
+}
+
+tests {
+  test("is a token for this service, from another issuer", function () {
+    // The payload of the JWT, base64url without padding; the sandbox's Buffer reads only base64.
+    function claims(token) {
+      const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(Buffer.from(payload, "base64").toString());
+    }
+    const token = claims(res.getBody().access_token);
+    expect(token.iss).to.equal(bru.getEnvVar("untrustedIssuer"));
+    expect([].concat(token.aud)).to.deep.equal([bru.getEnvVar("audience")]);
+  });
+}
+
 script:post-response {
   bru.setVar("untrustedToken", res.getBody().access_token);
 }
