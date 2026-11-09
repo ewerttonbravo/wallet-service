@@ -86,6 +86,22 @@ class LedgerConcurrencyTest {
         assertReconciles(owner);
     }
 
+    /** Retries of a withdrawal of the whole balance: any second posting would be refused, failing its retry. */
+    @Test
+    void concurrentRetriesOfAWithdrawalPostItOnce() {
+        var owner = aWalletWith("20.00");
+        var key = aKey();
+
+        var attempts = releasedTogether(IntStream.range(0, 16)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.withdraw(owner, money("20.00"), CORRELATION, key))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(attempts.stream().map(Future::resultNow).distinct()).hasSize(1);
+        assertThat(wallets.get(owner).balance()).isEqualTo(Money.ZERO);
+        assertReconciles(owner);
+    }
+
     /**
      * Each transfer holds one wallet and waits for the other. Locked sender first, a transfer from A
      * to B and one from B to A would each hold what the other needs; locked in id order, they queue.
