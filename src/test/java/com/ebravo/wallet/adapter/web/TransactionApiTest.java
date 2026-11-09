@@ -111,6 +111,31 @@ class TransactionApiTest {
         assertThat(retry).bodyJson().extractingPath("$.correlationId").isEqualTo("req-1");
     }
 
+    // The same key and amount replay (above); one cent apart, only the amount explains the refusal.
+    @Test
+    void refusesAKeyReusedForAnotherAmount() {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, "deposit-1", amount("10.50"));
+
+        var reused = post(owner, DEPOSITS, "deposit-1", amount("10.51"));
+
+        assertProblem(reused, HttpStatus.UNPROCESSABLE_CONTENT, "The Idempotency-Key was already used for another request");
+        assertBalance(owner, "10.50");
+    }
+
+    // Amounts are compared as money, not as text: a second posting would have doubled the balance.
+    @Test
+    void aReplayMayWriteTheSameAmountDifferently() throws Exception {
+        var owner = aWalletOwner();
+        var first = post(owner, DEPOSITS, "deposit-1", amount("10.5"));
+
+        var retry = post(owner, DEPOSITS, "deposit-1", amount("10.50"));
+
+        assertThat(retry).hasStatus(HttpStatus.CREATED);
+        assertThat(retry).bodyJson().isStrictlyEqualTo(first.getResponse().getContentAsString());
+        assertBalance(owner, "10.50");
+    }
+
     // Bob's key is Alice's, yet he gets a deposit of his own: keys never reach another user's wallet.
     @Test
     void anotherUsersKeyNeverReplaysTheirDeposit() {

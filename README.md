@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, balances, deposits, withdrawals and transfers work today, and a deposit sent again with the same idempotency key is posted only once; idempotency keys on withdrawals and transfers, and history, come next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, balances, deposits, withdrawals and transfers work today, and a deposit sent again with the same idempotency key is posted only once, and the key cannot be reused for another amount; idempotency keys on withdrawals and transfers, and history, come next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -55,7 +55,7 @@ curl -i -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
 ```
 
-Deposit and withdraw. Amounts are decimal strings with at most two decimal places. Each call answers with the transaction it posted and a `Location` to read it back. A deposit requires an `Idempotency-Key` (1 to 64 letters, digits, `.`, `_`, `:` or `-`), new for each deposit: sent again with the same key, the deposit answers with the transaction it already posted and moves no money.
+Deposit and withdraw. Amounts are decimal strings with at most two decimal places. Each call answers with the transaction it posted and a `Location` to read it back. A deposit requires an `Idempotency-Key` (1 to 64 letters, digits, `.`, `_`, `:` or `-`), new for each deposit: sent again with the same key, the deposit answers with the transaction it already posted and moves no money; with the same key and another amount, it is refused with `422`.
 
 ```sh
 curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \

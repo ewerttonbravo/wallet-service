@@ -1,6 +1,7 @@
 package com.ebravo.wallet.adapter.web;
 
 import com.ebravo.wallet.domain.BalanceLimitExceededException;
+import com.ebravo.wallet.domain.IdempotencyKeyReusedException;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.RecipientNotFoundException;
@@ -25,6 +26,7 @@ class WalletProblemHandler {
     ProblemDetail handle(WalletException exception) {
         var status = switch (exception) {
             case BalanceLimitExceededException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case IdempotencyKeyReusedException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InsufficientFundsException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InvalidAmountException _ -> HttpStatus.UNPROCESSABLE_CONTENT;
             case RecipientNotFoundException _ -> HttpStatus.UNPROCESSABLE_CONTENT;

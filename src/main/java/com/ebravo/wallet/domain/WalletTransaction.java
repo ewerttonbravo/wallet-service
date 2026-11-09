@@ -15,4 +15,9 @@ public record WalletTransaction(
         Optional<WalletId> counterparty,
         CorrelationId correlationId,
         Instant createdAt) {
+
+    /** Whether this is what a deposit of the amount would have posted: how a retry is told from a new request. */
+    public boolean isDepositOf(Money requested) {
+        return type == TransactionType.DEPOSIT && amount.equals(requested);
+    }
 }

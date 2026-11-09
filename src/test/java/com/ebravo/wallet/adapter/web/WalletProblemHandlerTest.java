@@ -3,6 +3,7 @@ package com.ebravo.wallet.adapter.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.ebravo.wallet.domain.BalanceLimitExceededException;
+import com.ebravo.wallet.domain.IdempotencyKeyReusedException;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.RecipientNotFoundException;
@@ -24,6 +25,7 @@ class WalletProblemHandlerTest {
     static Stream<Arguments> errors() {
         return Stream.of(
                 Arguments.of(BalanceLimitExceededException.ofTheWallet(), 422),
+                Arguments.of(new IdempotencyKeyReusedException(), 422),
                 Arguments.of(InsufficientFundsException.forWithdrawal(), 422),
                 Arguments.of(new InvalidAmountException("Amount must be positive"), 422),
                 Arguments.of(new RecipientNotFoundException(), 422),

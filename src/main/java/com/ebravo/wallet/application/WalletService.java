@@ -2,6 +2,7 @@ package com.ebravo.wallet.application;
 
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.IdempotencyKey;
+import com.ebravo.wallet.domain.IdempotencyKeyReusedException;
 import com.ebravo.wallet.domain.Money;
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Posting;
@@ -20,6 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -56,7 +58,8 @@ public final class WalletService {
     public WalletTransaction deposit(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         // Checked before the lock too, so a request that can never succeed does not wait for it.
         amount.requirePositive();
-        return postOnce(owner, key, (wallet, at) -> wallet.deposit(amount, correlationId, at));
+        return postOnce(owner, key, original -> original.isDepositOf(amount),
+                (wallet, at) -> wallet.deposit(amount, correlationId, at));
     }
 
     public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId) {
@@ -98,27 +101,39 @@ public final class WalletService {
         });
     }
 
-    private WalletTransaction postOnce(OwnerId owner, IdempotencyKey key, BiFunction<Wallet, Instant, Posting> operation) {
+    private WalletTransaction postOnce(
+            OwnerId owner,
+            IdempotencyKey key,
+            Predicate<WalletTransaction> sameRequest,
+            BiFunction<Wallet, Instant, Posting> operation) {
         return transactions.inTransaction(() -> {
             var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
             // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
-            return once(wallet, key, () -> record(wallet, operation.apply(wallet, now())));
+            return once(wallet, key, sameRequest, () -> record(wallet, operation.apply(wallet, now())));
         });
     }
 
     /**
      * Must run under the lock of the wallet that sent the key: a retry sent while the first request
      * is still posting waits for it there, then finds its key. A refused posting records no key, so
-     * its retry runs again.
+     * its retry runs again. A key that names a posting the request does not match is refused.
      */
-    private WalletTransaction once(Wallet wallet, IdempotencyKey key, Supplier<WalletTransaction> posting) {
+    private WalletTransaction once(
+            Wallet wallet, IdempotencyKey key, Predicate<WalletTransaction> sameRequest, Supplier<WalletTransaction> posting) {
         return keys.find(wallet.id(), key)
-                .map(posted -> ledger.find(wallet.id(), posted).orElseThrow())
+                .map(posted -> replay(ledger.find(wallet.id(), posted).orElseThrow(), sameRequest))
                 .orElseGet(() -> {
                     var posted = posting.get();
                     keys.record(wallet.id(), key, posted.id());
                     return posted;
                 });
+    }
+
+    private static WalletTransaction replay(WalletTransaction original, Predicate<WalletTransaction> sameRequest) {
+        if (!sameRequest.test(original)) {
+            throw new IdempotencyKeyReusedException();
+        }
+        return original;
     }
 
     /** Stores every changed balance and the transaction that explains them, in the caller's transaction. */
