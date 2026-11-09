@@ -356,6 +356,37 @@ class WalletServiceTest {
         assertThat(ledger.size()).isEqualTo(2);
     }
 
+    // Sent with a fresh key, the same request is refused for the recipient (refusesATransferToAnUnknownWallet):
+    // the key is looked up first, so a reused key is what the client hears.
+    @Test
+    void refusesAUsedKeySentToAnUnknownRecipientAsReused() {
+        var alice = anOwner();
+        service.open(alice);
+        var bob = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.transfer(alice, WalletId.newId(), money("10.00"), CORRELATION, key));
+        assertThat(service.get(alice).balance()).isEqualTo(money("15.00"));
+    }
+
+    // Checked before any lock, so the key is never looked up: a transfer to oneself is refused as such.
+    @Test
+    void refusesAUsedKeySentToTheOwnersOwnWalletAsASameWalletTransfer() {
+        var alice = anOwner();
+        var wallet = service.open(alice);
+        var bob = service.open(anOwner());
+        service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var key = aKey();
+        service.transfer(alice, bob.id(), money("10.00"), CORRELATION, key);
+
+        assertThatExceptionOfType(SameWalletTransferException.class)
+                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.00"), CORRELATION, key));
+        assertThat(service.get(alice).balance()).isEqualTo(money("15.00"));
+    }
+
     // Refused under the locks, after the key was looked up: only a posting keeps its key.
     @Test
     void aRefusedTransferLeavesItsKeyFree() {
