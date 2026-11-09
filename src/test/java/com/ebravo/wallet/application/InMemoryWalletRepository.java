@@ -2,6 +2,7 @@ package com.ebravo.wallet.application;
 
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Wallet;
+import com.ebravo.wallet.domain.WalletId;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,6 +24,11 @@ public final class InMemoryWalletRepository implements WalletRepository {
     @Override
     public Optional<Wallet> lockByOwner(OwnerId owner) {
         return findByOwner(owner);
+    }
+
+    @Override
+    public Optional<Wallet> lockById(WalletId id) {
+        return walletsByOwner.values().stream().filter(wallet -> wallet.id().equals(id)).findFirst();
     }
 
     @Override

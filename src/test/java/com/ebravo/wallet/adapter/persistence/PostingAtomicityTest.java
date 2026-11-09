@@ -74,6 +74,25 @@ class PostingAtomicityTest {
         assertThat(entriesOf(service, owner)).isZero();
     }
 
+    @Test
+    void aLedgerFailureAfterATransferRollsBothBalancesBack() {
+        var service = new WalletService(wallets, new FailingAfterAppend(ledger), transactions, clock);
+        var alice = anOwner();
+        var bob = anOwner();
+        service.open(alice);
+        var recipient = service.open(bob);
+        new WalletService(wallets, ledger, transactions, clock).deposit(alice, money("10.00"), CORRELATION);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> service.transfer(alice, recipient.id(), money("4.00"), CORRELATION))
+                .withMessage("ledger failed after writing");
+
+        assertThat(service.get(alice).balance()).isEqualTo(money("10.00"));
+        assertThat(service.get(bob).balance()).isEqualTo(Money.ZERO);
+        assertThat(entriesOf(service, alice)).isEqualTo(1);
+        assertThat(entriesOf(service, bob)).isZero();
+    }
+
     private int entriesOf(WalletService service, OwnerId owner) {
         return jdbc.sql("select count(*) from ledger_entry where wallet_id = :wallet")
                 .param("wallet", service.get(owner).id().value())

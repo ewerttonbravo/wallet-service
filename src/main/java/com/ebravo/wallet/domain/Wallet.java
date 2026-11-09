@@ -21,7 +21,7 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
     public Posting deposit(Money amount, CorrelationId correlationId, Instant at) {
         amount.requirePositive();
         if (amount.isGreaterThan(Money.MAX.subtract(balance))) {
-            throw new BalanceLimitExceededException();
+            throw BalanceLimitExceededException.ofTheWallet();
         }
         var after = balance.add(amount);
         return post(TransactionType.DEPOSIT, after, correlationId, at,
@@ -32,15 +32,39 @@ public record Wallet(WalletId id, OwnerId owner, Money balance, Instant createdA
     public Posting withdraw(Money amount, CorrelationId correlationId, Instant at) {
         amount.requirePositive();
         if (amount.isGreaterThan(balance)) {
-            throw new InsufficientFundsException();
+            throw InsufficientFundsException.forWithdrawal();
         }
         var after = balance.subtract(amount);
         return post(TransactionType.WITHDRAWAL, after, correlationId, at,
                 new WalletEntry(id, amount.negate(), after), new ExternalEntry(amount));
     }
 
+    /** Money moves to another wallet of the service: both balances change in one transaction. */
+    public Posting transfer(Money amount, Wallet recipient, CorrelationId correlationId, Instant at) {
+        amount.requirePositive();
+        if (recipient.id.equals(id)) {
+            throw new SameWalletTransferException();
+        }
+        if (amount.isGreaterThan(balance)) {
+            throw InsufficientFundsException.forTransfer();
+        }
+        if (amount.isGreaterThan(Money.MAX.subtract(recipient.balance))) {
+            throw BalanceLimitExceededException.ofTheRecipient();
+        }
+        var after = balance.subtract(amount);
+        var recipientAfter = recipient.balance.add(amount);
+        var transaction = new LedgerTransaction(TransactionId.newId(), TransactionType.TRANSFER,
+                List.of(new WalletEntry(id, amount.negate(), after), new WalletEntry(recipient.id, amount, recipientAfter)),
+                correlationId, at);
+        return new Posting(List.of(withBalance(after), recipient.withBalance(recipientAfter)), transaction);
+    }
+
     private Posting post(TransactionType type, Money after, CorrelationId correlationId, Instant at, LedgerEntry... entries) {
         var transaction = new LedgerTransaction(TransactionId.newId(), type, List.of(entries), correlationId, at);
-        return new Posting(new Wallet(id, owner, after, createdAt), transaction);
+        return new Posting(List.of(withBalance(after)), transaction);
+    }
+
+    private Wallet withBalance(Money newBalance) {
+        return new Wallet(id, owner, newBalance, createdAt);
     }
 }

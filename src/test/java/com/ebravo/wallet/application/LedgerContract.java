@@ -37,7 +37,7 @@ public interface LedgerContract {
     default void keepsTheSignedAmountAndResultingBalanceOfAWithdrawal() {
         var wallet = aWallet();
         var deposit = wallet.deposit(money("10.50"), CORRELATION, NOW);
-        var withdrawal = deposit.wallet().withdraw(money("0.50"), new CorrelationId("request-2"), NOW.plusSeconds(1)).transaction();
+        var withdrawal = deposit.wallets().getFirst().withdraw(money("0.50"), new CorrelationId("request-2"), NOW.plusSeconds(1)).transaction();
 
         append(deposit.transaction());
         append(withdrawal);
@@ -46,6 +46,24 @@ public interface LedgerContract {
         assertThat(seen.amount()).isEqualTo(money("-0.50"));
         assertThat(seen.balance()).isEqualTo(money("10.00"));
         assertThat(seen).isEqualTo(withdrawal.viewFor(wallet.id()).orElseThrow());
+    }
+
+    @Test
+    default void findsATransferFromEitherSideWithTheOtherWalletAsCounterparty() {
+        var sender = aWallet();
+        var recipient = aWallet();
+        var deposit = sender.deposit(money("10.50"), CORRELATION, NOW);
+        var transfer = deposit.wallets().getFirst()
+                .transfer(money("4.00"), recipient, new CorrelationId("request-2"), NOW.plusSeconds(1)).transaction();
+
+        append(deposit.transaction());
+        append(transfer);
+
+        var sent = ledger().find(sender.id(), transfer.id()).orElseThrow();
+        assertThat(sent.amount()).isEqualTo(money("-4.00"));
+        assertThat(sent.counterparty()).contains(recipient.id());
+        assertThat(ledger().find(recipient.id(), transfer.id())).contains(transfer.viewFor(recipient.id()).orElseThrow());
+        assertThat(ledger().find(sender.id(), deposit.transaction().id()).orElseThrow().counterparty()).isEmpty();
     }
 
     // The same transaction is found by its own wallet, so the other wallet is refused for not owning it.

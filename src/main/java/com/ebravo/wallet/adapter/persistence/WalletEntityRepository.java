@@ -45,6 +45,13 @@ interface WalletEntityRepository extends Repository<WalletEntity, UUID> {
     @Query("select w from WalletEntity w where w.ownerId = :ownerId")
     Optional<WalletEntity> lockByOwnerId(String ownerId);
 
+    /** Same lock and timeout as {@link #lockByOwnerId}. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "2000"))
+    @Query("select w from WalletEntity w where w.id = :id")
+    Optional<WalletEntity> lockById(UUID id);
+
     @Transactional(propagation = Propagation.MANDATORY)
     @Modifying
     @Query(nativeQuery = true, value = "update wallet set balance = :balance where id = :id")

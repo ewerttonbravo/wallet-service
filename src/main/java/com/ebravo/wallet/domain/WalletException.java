@@ -6,7 +6,8 @@ package com.ebravo.wallet.domain;
  */
 public abstract sealed class WalletException extends RuntimeException
         permits BalanceLimitExceededException, InsufficientFundsException, InvalidAmountException,
-                TransactionNotFoundException, WalletAlreadyExistsException, WalletNotFoundException {
+                RecipientNotFoundException, SameWalletTransferException, TransactionNotFoundException, WalletAlreadyExistsException,
+                WalletNotFoundException {
 
     protected WalletException(String message) {
         super(message);

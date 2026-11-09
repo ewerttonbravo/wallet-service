@@ -6,6 +6,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 import com.ebravo.wallet.IntegrationTest;
 import com.ebravo.wallet.domain.OwnerId;
+import com.jayway.jsonpath.JsonPath;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +69,35 @@ class LockTimeoutApiTest {
                 .bodyJson().extractingPath("$.balance").isEqualTo("10.00");
     }
 
+    /**
+     * A transfer locks the recipient too: while it is held elsewhere the transfer gives up, and once
+     * released the same transfer goes through.
+     */
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void aTransferWaitsForTheRecipientsLockToo() throws Exception {
+        var alice = anOwner();
+        var bob = anOwner();
+        assertThat(mvc.post().uri("/wallets").with(tokenOf(alice))).hasStatus(HttpStatus.CREATED);
+        var bobWallet = mvc.post().uri("/wallets").with(tokenOf(bob)).exchange();
+        assertThat(bobWallet).hasStatus(HttpStatus.CREATED);
+        var recipient = JsonPath.<String>read(bobWallet.getResponse().getContentAsString(), "$.id");
+        assertThat(deposit(alice)).hasStatus(HttpStatus.CREATED);
+
+        try (var holder = dataSource.getConnection()) {
+            holder.setAutoCommit(false);
+            lockWalletOf(bob, holder);
+
+            assertThat(transfer(alice, recipient))
+                    .hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                    .hasHeader(HttpHeaders.RETRY_AFTER, "1");
+            holder.rollback();
+        }
+
+        assertThat(transfer(alice, recipient)).hasStatus(HttpStatus.CREATED)
+                .bodyJson().extractingPath("$.balance").isEqualTo("6.00");
+    }
+
     // Same locked wallet as above, where a valid deposit waits and gets 503: this one never waits.
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
@@ -98,6 +128,11 @@ class LockTimeoutApiTest {
     private MvcTestResult deposit(OwnerId owner, String amount) {
         return mvc.post().uri("/wallets/me/deposits").with(tokenOf(owner))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"amount\": \"" + amount + "\"}").exchange();
+    }
+
+    private MvcTestResult transfer(OwnerId owner, String recipient) {
+        return mvc.post().uri("/wallets/me/transfers").with(tokenOf(owner)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"recipientWalletId\": \"" + recipient + "\", \"amount\": \"4.00\"}").exchange();
     }
 
     private static RequestPostProcessor tokenOf(OwnerId owner) {

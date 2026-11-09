@@ -2,6 +2,7 @@ package com.ebravo.wallet.application;
 
 import com.ebravo.wallet.domain.OwnerId;
 import com.ebravo.wallet.domain.Wallet;
+import com.ebravo.wallet.domain.WalletId;
 import java.util.Optional;
 
 public interface WalletRepository {
@@ -20,6 +21,9 @@ public interface WalletRepository {
      * it run one after the other. Must run inside {@link Transactions#inTransaction}.
      */
     Optional<Wallet> lockByOwner(OwnerId owner);
+
+    /** Same as {@link #lockByOwner}, for a wallet known by its id. */
+    Optional<Wallet> lockById(WalletId id);
 
     /**
      * Stores the wallet's new balance. Must run inside {@link Transactions#inTransaction}.

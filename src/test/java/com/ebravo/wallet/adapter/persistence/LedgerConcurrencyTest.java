@@ -69,6 +69,50 @@ class LedgerConcurrencyTest {
         assertReconciles(owner);
     }
 
+    /**
+     * Each transfer holds one wallet and waits for the other. Locked sender first, a transfer from A
+     * to B and one from B to A would each hold what the other needs; locked in id order, they queue.
+     */
+    @Test
+    void opposingTransfersNeverDeadlock() {
+        var alice = aWalletWith("100.00");
+        var bob = aWalletWith("100.00");
+        var aliceWallet = wallets.get(alice).id();
+        var bobWallet = wallets.get(bob).id();
+
+        var attempts = releasedTogether(IntStream.range(0, 32)
+                .<Callable<WalletTransaction>>mapToObj(i -> i % 2 == 0
+                        ? () -> wallets.transfer(alice, bobWallet, money("1.00"), CORRELATION)
+                        : () -> wallets.transfer(bob, aliceWallet, money("1.00"), CORRELATION))
+                .toList());
+
+        assertThat(attempts).allSatisfy(it -> assertThat(it.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(wallets.get(alice).balance()).isEqualTo(money("100.00"));
+        assertThat(wallets.get(bob).balance()).isEqualTo(money("100.00"));
+        assertReconciles(alice);
+        assertReconciles(bob);
+    }
+
+    @Test
+    void concurrentTransfersNeverOverdrawTheSender() {
+        var alice = aWalletWith("100.00");
+        var bob = aWalletWith("5.00");
+        var bobWallet = wallets.get(bob).id();
+
+        var attempts = releasedTogether(IntStream.range(0, 32)
+                .<Callable<WalletTransaction>>mapToObj(_ -> () -> wallets.transfer(alice, bobWallet, money("10.00"), CORRELATION))
+                .toList());
+
+        assertThat(succeeded(attempts)).isEqualTo(10);
+        assertThat(attempts).filteredOn(it -> it.state() == Future.State.FAILED)
+                .hasSize(22)
+                .allMatch(it -> it.exceptionNow() instanceof InsufficientFundsException);
+        assertThat(wallets.get(alice).balance()).isEqualTo(Money.ZERO);
+        assertThat(wallets.get(bob).balance()).isEqualTo(money("105.00"));
+        assertReconciles(alice);
+        assertReconciles(bob);
+    }
+
     private OwnerId aWalletWith(String balance) {
         var owner = anOwner();
         wallets.open(owner);
