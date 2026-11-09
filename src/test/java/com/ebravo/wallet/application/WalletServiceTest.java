@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import com.ebravo.wallet.domain.BalanceLimitExceededException;
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.IdempotencyKey;
+import com.ebravo.wallet.domain.IdempotencyKeyReusedException;
 import com.ebravo.wallet.domain.InsufficientFundsException;
 import com.ebravo.wallet.domain.InvalidAmountException;
 import com.ebravo.wallet.domain.Money;
@@ -111,6 +112,21 @@ class WalletServiceTest {
         var retry = service.deposit(owner, money("10.50"), new CorrelationId("request-2"), key);
 
         assertThat(retry).isEqualTo(first);
+        assertThat(service.get(owner).balance()).isEqualTo(money("10.50"));
+        assertThat(ledger.size()).isEqualTo(1);
+    }
+
+    // The same key and amount replay (above); one cent apart, only the amount explains the refusal.
+    @Test
+    void refusesAKeyReusedForAnotherAmount() {
+        var owner = anOwner();
+        service.open(owner);
+        var key = aKey();
+        service.deposit(owner, money("10.50"), CORRELATION, key);
+
+        assertThatExceptionOfType(IdempotencyKeyReusedException.class)
+                .isThrownBy(() -> service.deposit(owner, money("10.51"), CORRELATION, key))
+                .withMessage("The Idempotency-Key was already used for another request");
         assertThat(service.get(owner).balance()).isEqualTo(money("10.50"));
         assertThat(ledger.size()).isEqualTo(1);
     }

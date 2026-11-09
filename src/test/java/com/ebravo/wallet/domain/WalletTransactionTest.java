@@ -28,4 +28,29 @@ class WalletTransactionTest {
         assertThat(transaction.correlationId()).isEqualTo(correlation);
         assertThat(transaction.createdAt()).isEqualTo(at);
     }
+
+    @Test
+    void aDepositIsTheDepositOfItsOwnAmount() {
+        assertThat(transaction(TransactionType.DEPOSIT, "10.50").isDepositOf(money("10.50"))).isTrue();
+    }
+
+    @Test
+    void aDepositIsNotTheDepositOfAnotherAmount() {
+        assertThat(transaction(TransactionType.DEPOSIT, "10.50").isDepositOf(money("10.51"))).isFalse();
+    }
+
+    // Same signed amount as the deposit asked for, so only the type can tell them apart.
+    @Test
+    void anIncomingTransferIsNotADeposit() {
+        assertThat(transaction(TransactionType.TRANSFER, "10.50").isDepositOf(money("10.50"))).isFalse();
+    }
+
+    private static WalletTransaction transaction(TransactionType type, String amount) {
+        return new WalletTransaction(TransactionId.newId(), type, money(amount), money(amount), Optional.empty(),
+                new CorrelationId("request-1"), Instant.parse("2026-11-08T10:15:30.123456Z"));
+    }
+
+    private static Money money(String amount) {
+        return new Money(new BigDecimal(amount));
+    }
 }
