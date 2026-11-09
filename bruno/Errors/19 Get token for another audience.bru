@@ -1,0 +1,26 @@
+meta {
+  name: Get token for another audience
+  type: http
+  seq: 19
+}
+
+post {
+  url: {{issuer}}/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: {{user}}
+  client_secret: any
+  scope: another-service
+}
+
+script:post-response {
+  bru.setVar("otherAudienceToken", res.getBody().access_token);
+}
+
+docs {
+  The trusted issuer and the same user as 01 Get token: only the audience differs.
+}

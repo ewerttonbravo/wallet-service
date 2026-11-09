@@ -1,0 +1,27 @@
+meta {
+  name: Get token from another issuer
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{untrustedIssuer}}/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: {{user}}
+  client_secret: any
+  scope: {{audience}}
+}
+
+script:post-response {
+  bru.setVar("untrustedToken", res.getBody().access_token);
+}
+
+docs {
+  The same server, user and audience as 01 Get token, under another issuer id: a well-formed token
+  the service must not trust.
+}
