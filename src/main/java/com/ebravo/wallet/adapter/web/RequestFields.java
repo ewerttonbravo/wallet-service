@@ -23,11 +23,11 @@ final class RequestFields {
     private static final int MAX_AMOUNT_LENGTH = 32;
     private static final Pattern PLAIN_DECIMAL = Pattern.compile("-?\\d+(\\.\\d+)?");
     // UUID.fromString also accepts shortened forms such as "1-1-1-1-1"; wallet ids are written in full.
+    private static final Pattern CANONICAL_UUID = Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}");
     // Ten digits hold every int; parsing decides whether the value fits.
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d{1,10}");
     private static final int FIRST_PAGE = 0;
     private static final int DEFAULT_PAGE_SIZE = 20;
-    private static final Pattern CANONICAL_UUID = Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}");
 
     private RequestFields() {
     }

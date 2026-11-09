@@ -18,7 +18,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Objects;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -91,7 +91,7 @@ class JdbcLedger implements Ledger {
      */
     @Override
     public TransactionPage history(WalletId wallet, PageRequest page) {
-        var rows = jdbc.sql("""
+        return jdbc.sql("""
                         select c.total, p.*
                         from (select count(*) as total from ledger_entry where wallet_id = :wallet) c
                         left join lateral (
@@ -110,11 +110,17 @@ class JdbcLedger implements Ledger {
                 .param("wallet", wallet.value())
                 .param("offset", page.offset())
                 .param("size", page.size())
-                .query((rs, _) -> new HistoryRow(
-                        rs.getLong("total"), rs.getObject("id") == null ? null : walletTransaction(rs)))
-                .list();
-        var transactions = rows.stream().map(HistoryRow::transaction).filter(Objects::nonNull).toList();
-        return new TransactionPage(transactions, page, rows.getFirst().total());
+                .query(rs -> {
+                    var transactions = new ArrayList<WalletTransaction>();
+                    var total = 0L;
+                    while (rs.next()) {
+                        total = rs.getLong("total");
+                        if (rs.getObject("entry_id") != null) {
+                            transactions.add(walletTransaction(rs));
+                        }
+                    }
+                    return new TransactionPage(transactions, page, total);
+                });
     }
 
     private static WalletTransaction walletTransaction(ResultSet rs) throws SQLException {
@@ -126,9 +132,6 @@ class JdbcLedger implements Ledger {
                 Optional.ofNullable(rs.getObject("counterparty", UUID.class)).map(WalletId::new),
                 new CorrelationId(rs.getString("correlation_id")),
                 rs.getObject("created_at", OffsetDateTime.class).toInstant());
-    }
-
-    private record HistoryRow(long total, WalletTransaction transaction) {
     }
 
     private record EntryRow(UUID wallet, Money amount, Money balanceAfter) {
