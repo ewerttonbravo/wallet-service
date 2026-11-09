@@ -76,13 +76,20 @@ class ApiContractTest {
     }
 
     private static MockHttpServletRequest get(String path) {
-        return new MockHttpServletRequest("GET", path);
+        return request("GET", path);
     }
 
     private static MockHttpServletRequest deposit() {
-        var request = new MockHttpServletRequest("POST", "/wallets/me/deposits");
+        var request = request("POST", "/wallets/me/deposits");
         request.setContentType(MediaType.APPLICATION_JSON_VALUE);
         request.setContent("{\"amount\":\"10.50\"}".getBytes(StandardCharsets.UTF_8));
+        return request;
+    }
+
+    // MockMvc sets the path info as well; the validator reads the path from it.
+    private static MockHttpServletRequest request(String method, String path) {
+        var request = new MockHttpServletRequest(method, path);
+        request.setPathInfo(path);
         return request;
     }
 
