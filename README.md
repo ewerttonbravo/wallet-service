@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, balances, deposits, withdrawals and transfers work today, and a deposit sent again with the same idempotency key is posted only once, and the key cannot be reused for another amount; idempotency keys on withdrawals and transfers, and history, come next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, balances, deposits, withdrawals and transfers work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The transaction history and the balance at a past instant come next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -55,13 +55,14 @@ curl -i -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
 ```
 
-Deposit and withdraw. Amounts are decimal strings with at most two decimal places. Each call answers with the transaction it posted and a `Location` to read it back. A deposit requires an `Idempotency-Key` (1 to 64 letters, digits, `.`, `_`, `:` or `-`), new for each deposit: sent again with the same key, the deposit answers with the transaction it already posted and moves no money; with the same key and another amount, it is refused with `422`.
+Deposit and withdraw. Amounts are decimal strings with at most two decimal places. Each call answers with the transaction it posted and a `Location` to read it back. Deposits, withdrawals and transfers require an `Idempotency-Key` (1 to 64 letters, digits, `.`, `_`, `:` or `-`), new for each operation: sent again with the same key, the operation answers with the transaction it already posted and moves no money; with the same key and another request (another amount, recipient or operation), it is refused with `422`.
 
 ```sh
 curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "Idempotency-Key: deposit-1" -H "X-Correlation-Id: my-request-1" \
   -d '{"amount": "100.00"}' http://localhost:8080/wallets/me/deposits
 curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: withdrawal-1" \
   -d '{"amount": "30.50"}' http://localhost:8080/wallets/me/withdrawals
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/wallets/me/balance
 ```
@@ -76,11 +77,12 @@ BOB_TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=bob -d client_
 BOB_WALLET=$(curl -s -X POST -H "Authorization: Bearer $BOB_TOKEN" http://localhost:8080/wallets | jq -r .id)
 
 curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: transfer-1" \
   -d "{\"recipientWalletId\": \"$BOB_WALLET\", \"amount\": \"20.00\"}" http://localhost:8080/wallets/me/transfers
 curl -H "Authorization: Bearer $BOB_TOKEN" http://localhost:8080/wallets/me/balance
 ```
 
-Both wallets see the transfer at the same `Location`, each with its own signed amount and balance, and the other wallet as `counterpartyWalletId`.
+Both wallets see the transfer at the same `Location`, each with its own signed amount and balance, and the other wallet as `counterpartyWalletId`. A transfer sent again with the same key replays only when it names the same recipient and amount; for another recipient, it is refused with `422`.
 
 Tokens for any audience other than `wallet-service` are rejected with `401`. If ports 5432 or 9000 are taken, change the host side of `ports` in `compose.yaml` and the matching variable. Stop everything with `docker compose down -v`.
 
