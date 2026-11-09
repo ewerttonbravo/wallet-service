@@ -1,0 +1,31 @@
+meta {
+  name: Get API contract
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{api}}/openapi.yaml
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("is served as YAML", function () {
+    expect(res.getHeader("content-type")).to.match(/^application\/yaml/);
+  });
+
+  test("is an OpenAPI 3.1 contract of this service", function () {
+    const contract = String(res.getBody());
+    expect(contract.startsWith("openapi: 3.1.0")).to.equal(true);
+    expect(contract).to.contain("/wallets/me/transfers:");
+  });
+}
+
+docs {
+  Read without a token, as clients and gateways do before they hold one.
+}
