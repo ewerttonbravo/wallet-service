@@ -1,6 +1,8 @@
 package com.ebravo.wallet.adapter.persistence;
 
 import com.ebravo.wallet.application.Ledger;
+import com.ebravo.wallet.application.PageRequest;
+import com.ebravo.wallet.application.TransactionPage;
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.ExternalEntry;
 import com.ebravo.wallet.domain.LedgerEntry;
@@ -84,6 +86,11 @@ class JdbcLedger implements Ledger {
                         new CorrelationId(rs.getString("correlation_id")),
                         rs.getObject("created_at", OffsetDateTime.class).toInstant()))
                 .optional();
+    }
+
+    @Override
+    public TransactionPage history(WalletId wallet, PageRequest page) {
+        throw new UnsupportedOperationException("not yet");
     }
 
     private record EntryRow(UUID wallet, Money amount, Money balanceAfter) {
