@@ -62,9 +62,10 @@ public final class WalletService {
                 (wallet, at) -> wallet.deposit(amount, correlationId, at));
     }
 
-    public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId) {
+    public WalletTransaction withdraw(OwnerId owner, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
-        return post(owner, (wallet, at) -> wallet.withdraw(amount, correlationId, at));
+        return postOnce(owner, key, original -> original.isWithdrawalOf(amount),
+                (wallet, at) -> wallet.withdraw(amount, correlationId, at));
     }
 
     /** Moves money from the owner's wallet to the recipient's; the result is the transfer as the owner sees it. */
@@ -91,14 +92,6 @@ public final class WalletService {
     /** Only the owner's own transactions are found: anyone else's is reported as missing. */
     public WalletTransaction transaction(OwnerId owner, TransactionId id) {
         return ledger.find(get(owner).id(), id).orElseThrow(TransactionNotFoundException::new);
-    }
-
-    private WalletTransaction post(OwnerId owner, BiFunction<Wallet, Instant, Posting> operation) {
-        return transactions.inTransaction(() -> {
-            var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
-            // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
-            return record(wallet, operation.apply(wallet, now()));
-        });
     }
 
     private WalletTransaction postOnce(

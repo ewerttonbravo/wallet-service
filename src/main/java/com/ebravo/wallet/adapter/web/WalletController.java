@@ -61,8 +61,10 @@ class WalletController {
     ResponseEntity<TransactionResponse> withdraw(
             @AuthenticationPrincipal Jwt token,
             @RequestAttribute(CorrelationIdFilter.ATTRIBUTE) CorrelationId correlationId,
+            @RequestHeader(name = RequestFields.IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @RequestBody AmountRequest request) {
-        return posted(wallets.withdraw(ownerOf(token), request.toMoney(), correlationId));
+        return posted(wallets.withdraw(
+                ownerOf(token), request.toMoney(), correlationId, RequestFields.idempotencyKey(idempotencyKey)));
     }
 
     @PostMapping("/me/transfers")

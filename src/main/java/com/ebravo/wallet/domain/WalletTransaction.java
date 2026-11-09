@@ -20,4 +20,9 @@ public record WalletTransaction(
     public boolean isDepositOf(Money requested) {
         return type == TransactionType.DEPOSIT && amount.equals(requested);
     }
+
+    /** Money left the wallet, so the owner sees the withdrawal with the requested amount negated. */
+    public boolean isWithdrawalOf(Money requested) {
+        return type == TransactionType.WITHDRAWAL && amount.equals(requested.negate());
+    }
 }
