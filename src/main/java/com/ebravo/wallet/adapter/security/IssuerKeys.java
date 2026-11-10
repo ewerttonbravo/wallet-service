@@ -49,7 +49,7 @@ final class IssuerKeys {
                     .refreshAheadCache(false)
                     .rateLimited(false)
                     .build();
-        } catch (MalformedURLException e) {
+        } catch (MalformedURLException | IllegalArgumentException e) {
             throw new IllegalStateException("spring.security.oauth2.resourceserver.jwt.jwk-set-uri is not a URL", e);
         }
     }
