@@ -31,14 +31,21 @@ public final class WalletService {
     private final Ledger ledger;
     private final IdempotencyKeys keys;
     private final Transactions transactions;
+    private final WalletMetrics metrics;
     private final Clock clock;
 
     public WalletService(
-            WalletRepository wallets, Ledger ledger, IdempotencyKeys keys, Transactions transactions, Clock clock) {
+            WalletRepository wallets,
+            Ledger ledger,
+            IdempotencyKeys keys,
+            Transactions transactions,
+            WalletMetrics metrics,
+            Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
         this.keys = keys;
         this.transactions = transactions;
+        this.metrics = metrics;
         this.clock = clock;
     }
 
@@ -92,7 +99,7 @@ public final class WalletService {
         if (source.equals(recipient)) {
             throw new SameWalletTransferException();
         }
-        return transactions.inTransaction(() -> {
+        return counted(transactions.inTransaction(() -> {
             // Every transfer locks its wallets in id order: two opposing transfers queue for the first
             // lock instead of each holding the one the other waits for.
             var locked = new HashMap<WalletId, Wallet>();
@@ -104,7 +111,7 @@ public final class WalletService {
                 var target = Optional.ofNullable(locked.get(recipient)).orElseThrow(RecipientNotFoundException::new);
                 return record(sender, sender.transfer(amount, target, correlationId, now()));
             });
-        });
+        }));
     }
 
     /** Only the owner's own transactions are found: anyone else's is reported as missing. */
@@ -121,11 +128,22 @@ public final class WalletService {
             IdempotencyKey key,
             Predicate<WalletTransaction> sameRequest,
             BiFunction<Wallet, Instant, Posting> operation) {
-        return transactions.inTransaction(() -> {
+        return counted(transactions.inTransaction(() -> {
             var wallet = wallets.lockByOwner(owner).orElseThrow(WalletNotFoundException::new);
             // Read under the lock, so a wallet's entries are timestamped in the order they were posted.
             return once(wallet, key, sameRequest, () -> record(wallet, operation.apply(wallet, now())));
-        });
+        }));
+    }
+
+    /** Counted once the transaction returned, so a posting rolled back is never counted. */
+    private WalletTransaction counted(Outcome outcome) {
+        var type = outcome.transaction().type();
+        if (outcome.replayed()) {
+            metrics.replayed(type);
+        } else {
+            metrics.posted(type);
+        }
+        return outcome.transaction();
     }
 
     /**
@@ -133,14 +151,14 @@ public final class WalletService {
      * is still posting waits for it there, then finds its key. A refused posting records no key, so
      * its retry runs again. A key that names a posting the request does not match is refused.
      */
-    private WalletTransaction once(
+    private Outcome once(
             Wallet wallet, IdempotencyKey key, Predicate<WalletTransaction> sameRequest, Supplier<WalletTransaction> posting) {
         return keys.find(wallet.id(), key)
-                .map(posted -> replay(ledger.find(wallet.id(), posted).orElseThrow(), sameRequest))
+                .map(posted -> new Outcome(replay(ledger.find(wallet.id(), posted).orElseThrow(), sameRequest), true))
                 .orElseGet(() -> {
                     var posted = posting.get();
                     keys.record(wallet.id(), key, posted.id());
-                    return posted;
+                    return new Outcome(posted, false);
                 });
     }
 
@@ -156,6 +174,10 @@ public final class WalletService {
         posting.wallets().forEach(wallets::updateBalance);
         ledger.append(posting.transaction());
         return posting.transaction().viewFor(acting.id()).orElseThrow();
+    }
+
+    /** A posting's result, and whether it was a replay of one already posted. */
+    private record Outcome(WalletTransaction transaction, boolean replayed) {
     }
 
     // The database keeps microseconds; truncating makes what is returned equal to what is stored.

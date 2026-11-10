@@ -3,6 +3,7 @@ package com.ebravo.wallet.adapter.config;
 import com.ebravo.wallet.application.IdempotencyKeys;
 import com.ebravo.wallet.application.Ledger;
 import com.ebravo.wallet.application.Transactions;
+import com.ebravo.wallet.application.WalletMetrics;
 import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.application.WalletService;
 import java.time.Clock;
@@ -20,7 +21,12 @@ class ApplicationConfiguration {
 
     @Bean
     WalletService walletService(
-            WalletRepository wallets, Ledger ledger, IdempotencyKeys keys, Transactions transactions, Clock clock) {
-        return new WalletService(wallets, ledger, keys, transactions, clock);
+            WalletRepository wallets,
+            Ledger ledger,
+            IdempotencyKeys keys,
+            Transactions transactions,
+            WalletMetrics metrics,
+            Clock clock) {
+        return new WalletService(wallets, ledger, keys, transactions, metrics, clock);
     }
 }

@@ -336,23 +336,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/RefusedToken"
-  /actuator/health:
-    get:
-      operationId: getHealth
-      summary: Health of the service
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/CorrelationId"
-      responses:
-        "200":
-          $ref: "#/components/responses/Up"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/RefusedToken"
-        "503":
-          $ref: "#/components/responses/Down"
-  /actuator/health/liveness:
+  /livez:
     get:
       operationId: getLiveness
       summary: Liveness probe
@@ -368,7 +352,7 @@ paths:
           $ref: "#/components/responses/RefusedToken"
         "503":
           $ref: "#/components/responses/Down"
-  /actuator/health/readiness:
+  /readyz:
     get:
       operationId: getReadiness
       summary: Readiness probe

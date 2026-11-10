@@ -24,7 +24,8 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=http://127.0.0.1:1/local",
-        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://127.0.0.1:1/local/jwks"})
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://127.0.0.1:1/local/jwks",
+        "management.server.port=0"})
 @Import(TestcontainersConfiguration.class)
 @ExtendWith(OutputCaptureExtension.class)
 class IssuerOutageTest {

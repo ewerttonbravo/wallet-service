@@ -19,5 +19,6 @@ COPY --from=build /build/extracted/spring-boot-loader/ ./
 COPY --from=build /build/extracted/snapshot-dependencies/ ./
 COPY --from=build /build/extracted/application/ ./
 USER wallet
-EXPOSE 8080
+# 8080 serves the API and the probes; 8081 the actuator, for the platform alone.
+EXPOSE 8080 8081
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

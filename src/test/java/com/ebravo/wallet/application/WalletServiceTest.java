@@ -4,6 +4,7 @@ import static com.ebravo.wallet.Fixtures.aKey;
 import static com.ebravo.wallet.Fixtures.anOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import com.ebravo.wallet.domain.BalanceLimitExceededException;
 import com.ebravo.wallet.domain.CorrelationId;
@@ -48,8 +49,9 @@ class WalletServiceTest {
     private final InMemoryLedger ledger = new InMemoryLedger();
     private final IdempotencyKeys keys = new InMemoryIdempotencyKeys();
     private final CountingTransactions transactions = new CountingTransactions();
+    private final RecordingMetrics metrics = new RecordingMetrics();
     private final WalletService service =
-            new WalletService(wallets, ledger, keys, transactions, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
+            new WalletService(wallets, ledger, keys, transactions, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
 
     @Test
     void opensAWalletWithZeroBalanceForTheOwner() {
@@ -423,7 +425,7 @@ class WalletServiceTest {
     @Test
     void locksBothWalletsInIdOrderWhicheverWayMoneyMoves() {
         var locks = new RecordingLocks(wallets);
-        var recordingService = new WalletService(locks, ledger, keys, transactions, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
+        var recordingService = new WalletService(locks, ledger, keys, transactions, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
         var alice = anOwner();
         var bob = anOwner();
         var aliceWallet = service.open(alice).id();
@@ -637,9 +639,72 @@ class WalletServiceTest {
                 .isThrownBy(() -> service.balanceAt(anOwner(), NOW_IN_MICROS));
     }
 
+    @Test
+    void countsEveryPostingByType() {
+        var alice = anOwner();
+        service.open(alice);
+        var recipient = service.open(anOwner());
+
+        service.deposit(alice, money("30.00"), CORRELATION, aKey());
+        service.withdraw(alice, money("10.00"), CORRELATION, aKey());
+        service.transfer(alice, recipient.id(), money("5.00"), CORRELATION, aKey());
+
+        assertThat(metrics.counted).containsExactly("posted DEPOSIT", "posted WITHDRAWAL", "posted TRANSFER");
+    }
+
+    @Test
+    void countsAReplayApartFromAPosting() {
+        var alice = anOwner();
+        service.open(alice);
+        var recipient = service.open(anOwner());
+        var deposit = aKey();
+        var withdrawal = aKey();
+        var transfer = aKey();
+        service.deposit(alice, money("30.00"), CORRELATION, deposit);
+        service.withdraw(alice, money("10.00"), CORRELATION, withdrawal);
+        service.transfer(alice, recipient.id(), money("5.00"), CORRELATION, transfer);
+        metrics.counted.clear();
+
+        service.deposit(alice, money("30.00"), CORRELATION, deposit);
+        service.withdraw(alice, money("10.00"), CORRELATION, withdrawal);
+        service.transfer(alice, recipient.id(), money("5.00"), CORRELATION, transfer);
+
+        assertThat(metrics.counted).containsExactly("replayed DEPOSIT", "replayed WITHDRAWAL", "replayed TRANSFER");
+    }
+
+    @Test
+    void countsNothingForARefusedPosting() {
+        var alice = anOwner();
+        service.open(alice);
+
+        assertThatExceptionOfType(InsufficientFundsException.class)
+                .isThrownBy(() -> service.withdraw(alice, money("1.00"), CORRELATION, aKey()));
+
+        assertThat(metrics.counted).isEmpty();
+    }
+
+    /** Counted once the transaction committed: a posting rolled back at commit moved no money. */
+    @Test
+    void countsNothingWhenTheTransactionFailsToCommit() {
+        var alice = anOwner();
+        service.open(alice);
+        Transactions failingAtCommit = new Transactions() {
+            @Override
+            public <T> T inTransaction(Supplier<T> work) {
+                work.get();
+                throw new IllegalStateException("commit failed");
+            }
+        };
+        var failing = new WalletService(wallets, ledger, keys, failingAtCommit, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
+
+        assertThatIllegalStateException().isThrownBy(() -> failing.deposit(alice, money("1.00"), CORRELATION, aKey()));
+
+        assertThat(metrics.counted).isEmpty();
+    }
+
     /** The same wallets and ledger, with the clock at another instant. */
     private WalletService serviceAt(Instant now) {
-        return new WalletService(wallets, ledger, keys, transactions, Clock.fixed(now, ZoneOffset.UTC));
+        return new WalletService(wallets, ledger, keys, transactions, metrics, Clock.fixed(now, ZoneOffset.UTC));
     }
 
     private static Money money(String amount) {

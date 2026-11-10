@@ -35,7 +35,7 @@ Requires Docker with Compose, plus `curl` and `jq` for the examples. Build the s
 docker compose up -d --wait --build
 ```
 
-The first build downloads the dependencies and takes a few minutes; later builds reuse them. Flyway creates the schema on startup. Check that the service is up with `curl localhost:8080/actuator/health`.
+The first build downloads the dependencies and takes a few minutes; later builds reuse them. Flyway creates the schema on startup. Check that the service is ready with `curl localhost:8080/readyz` (liveness is `/livez`).
 
 Get a token for a user (`client_id` becomes the token subject, `scope` its audience) and call the API:
 
@@ -95,6 +95,12 @@ The service logs one JSON object per line, in Elastic Common Schema, with a line
 docker compose logs --no-log-prefix wallet-service | grep '^{' | jq 'select(.correlationId == "my-request-1")'
 ```
 
+Metrics are in Prometheus format on the management port, 8081, which Compose keeps inside the container: the platform scrapes it, clients never reach it. Postings are counted by type and outcome, refusals by reason, next to Spring Boot's request, JVM and connection pool metrics:
+
+```sh
+docker compose exec wallet-service wget -qO- localhost:8081/actuator/prometheus | grep '^wallet_'
+```
+
 Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`, and the URLs that name it: for 8080, `api` in `bruno/environments/local.bru` and the examples above; for 9000, `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml`, `issuer` and `untrustedIssuer` in `bruno/environments/local.bru`, and the examples above. Stop everything with `docker compose down -v`.
 
 ### Run from source
@@ -110,6 +116,8 @@ export SPRING_DATASOURCE_PASSWORD=wallet
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000/local
 ./mvnw spring-boot:run
 ```
+
+Run from source, the service listens on 8080 for the API and 8081 for the actuator (`curl localhost:8081/actuator/prometheus`). If 8081 is taken, set `MANAGEMENT_SERVER_PORT` to another port; the service refuses to start when it is the API's port, since the actuator answers without a token.
 
 ### API contract
 
