@@ -1,0 +1,20 @@
+meta {
+  name: Get liveness
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{api}}/livez
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq "UP"
+}
+
+docs {
+  Read without a token, as an orchestrator does: while it fails, the instance is restarted.
+}

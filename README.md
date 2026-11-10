@@ -120,6 +120,18 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI=http://localhost:9000
 
 Run from source, the service listens on 8080 for the API and 8081 for the actuator (`curl localhost:8081/actuator/prometheus`). If 8081 is taken, set `MANAGEMENT_SERVER_PORT` to another port; the service refuses to start when it is the API's port, since the actuator answers without a token.
 
+### Debugging
+
+With the same environment, start the service with a debug agent and attach the IDE's remote debugger to port 5005:
+
+```sh
+./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+```
+
+To debug a test, run it with `./mvnw -Dmaven.surefire.debug -Dtest=WalletServiceTest test`: it waits on port 5005 until the debugger attaches.
+
+A posting or wallet opening runs within a three-second budget the database keeps. A breakpoint held longer inside one lets PostgreSQL end the transaction, and the request answers `503`.
+
 ### API contract
 
 The service serves its OpenAPI 3.1 contract without a token. The same file is [`src/main/resources/openapi.yaml`](src/main/resources/openapi.yaml), and every API test checks its exchanges against it:
@@ -130,7 +142,7 @@ curl localhost:8080/openapi.yaml
 
 ### API collection
 
-[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first and then the errors, each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
+[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first, then the errors, then the operations endpoints (the probes and the contract), each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
 
 ```sh
 cd bruno && npx -y @usebruno/cli@4.3.0 run --env local -r

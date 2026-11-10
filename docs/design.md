@@ -25,7 +25,7 @@ Dependencies point inward: technology depends on the domain, never the other way
 - An OpenAPI 3.1 contract, written by hand in `src/main/resources/openapi.yaml` and served at `GET /openapi.yaml`; Atlassian's openapi-request-validator checks the tests' exchanges against it.
 - Micrometer metrics in Prometheus format, on a management port of its own.
 - Structured logs in Elastic Common Schema, Spring Boot's own format, one JSON object per line.
-- A [Bruno](https://www.usebruno.com) collection of every endpoint, in `bruno/`: usage examples and end-to-end checks.
+- A [Bruno](https://www.usebruno.com) collection of every endpoint on the API's port, in `bruno/`: usage examples and end-to-end checks.
 - GitHub Actions, on every pull request and every push to `main`: `./mvnw verify`, and the Bruno collection against the stack Docker Compose starts.
 
 ## API
