@@ -1,6 +1,7 @@
 package com.ebravo.wallet.adapter.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpHeaders.RETRY_AFTER;
 import static org.springframework.http.HttpHeaders.WWW_AUTHENTICATE;
 
@@ -11,6 +12,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.BearerTokenErrors;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import tools.jackson.databind.json.JsonMapper;
@@ -63,8 +65,8 @@ class BearerTokenProblemsTest {
         var request = new MockHttpServletRequest("GET", "/wallets/me");
         var response = new MockHttpServletResponse();
 
-        problems.onAuthenticationFailure(request, response,
-                new AuthenticationServiceException("Couldn't retrieve remote JWK set"));
+        problems.onAuthenticationFailure(request, response, new AuthenticationServiceException(
+                "Couldn't retrieve remote JWK set", new JwtException("Couldn't retrieve remote JWK set")));
 
         assertThat(response.getStatus()).isEqualTo(503);
         assertThat(response.getHeader(RETRY_AFTER)).isEqualTo("1");
@@ -73,6 +75,20 @@ class BearerTokenProblemsTest {
         assertThat(response.getContentAsString()).isEqualTo("""
                 {"title":"Service Unavailable","status":503,\
                 "detail":"The token cannot be checked now, retry the request","instance":"/wallets/me"}""");
+    }
+
+    /**
+     * The bearer filter also catches what is thrown after the token was accepted, further down the
+     * chain. A service failure that is not the decoder's goes to the error page, as Spring's own
+     * handler sends it, instead of being blamed on the token.
+     */
+    @Test
+    void leavesAServiceFailureThatIsNotTheDecodersToTheErrorPage() {
+        var failure = new AuthenticationServiceException("Something else failed");
+
+        assertThatThrownBy(() -> problems.onAuthenticationFailure(
+                new MockHttpServletRequest("GET", "/wallets/me"), new MockHttpServletResponse(), failure))
+                .isSameAs(failure);
     }
 
     /** Guards the 503 above: only a token that could not be checked gets it, a bad one is still challenged. */
