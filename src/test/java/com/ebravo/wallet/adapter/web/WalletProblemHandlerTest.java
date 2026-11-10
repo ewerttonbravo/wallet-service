@@ -22,8 +22,10 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.transaction.TransactionTimedOutException;
 
 /** Pins the status of every business error; API tests show them end to end. */
 class WalletProblemHandlerTest {
@@ -89,6 +91,27 @@ class WalletProblemHandlerTest {
         return Stream.of(
                 new DataAccessResourceFailureException("Unable to acquire JDBC Connection"),
                 new CannotCreateTransactionException("Could not open JPA EntityManager for transaction"));
+    }
+
+    /**
+     * A statement cancelled at the budget, or one started past it: the transaction was rolled back.
+     * Not a refusal, like an unavailable database: no reason is counted for it.
+     */
+    @ParameterizedTest
+    @MethodSource("budgetsRunOut")
+    void mapsATransactionPastItsBudgetToServiceUnavailable(RuntimeException failure) {
+        var response = handler.handleTookTooLong(failure);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("1");
+        assertThat(response.getBody().getDetail()).isEqualTo("The request took too long, retry the request");
+        assertThat(registry.find("wallet.refusals").counters()).allMatch(counter -> counter.count() == 0);
+    }
+
+    static Stream<RuntimeException> budgetsRunOut() {
+        return Stream.of(
+                new QueryTimeoutException("ERROR: canceling statement due to user request"),
+                new TransactionTimedOutException("Transaction timed out"));
     }
 
     /** Every reason exists from the start, at zero, so a rate over it exists before the first refusal. */
