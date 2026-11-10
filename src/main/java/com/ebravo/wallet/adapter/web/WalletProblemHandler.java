@@ -91,7 +91,7 @@ class WalletProblemHandler {
             TransientDataAccessResourceException.class,
             CannotCreateTransactionException.class})
     ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
-        LOG.error("The database cannot be reached", exception);
+        LOG.error("The database is unavailable", exception);
         return retryLater("The database is unavailable, retry the request");
     }
 
