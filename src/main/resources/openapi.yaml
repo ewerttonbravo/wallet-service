@@ -320,6 +320,8 @@ paths:
                 type: string
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
   /actuator/health:
     get:
       operationId: getHealth
@@ -332,6 +334,8 @@ paths:
           $ref: "#/components/responses/Up"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
         "503":
           $ref: "#/components/responses/Down"
   /actuator/health/liveness:
@@ -346,6 +350,8 @@ paths:
           $ref: "#/components/responses/Up"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
         "503":
           $ref: "#/components/responses/Down"
   /actuator/health/readiness:
@@ -360,6 +366,8 @@ paths:
           $ref: "#/components/responses/Up"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
         "503":
           $ref: "#/components/responses/Down"
 components:
@@ -431,6 +439,17 @@ components:
           $ref: "#/components/headers/CorrelationId"
         WWW-Authenticate:
           description: The bearer challenge (RFC 6750), with the error when a token was sent.
+          required: true
+          schema:
+            type: string
+            pattern: "^Bearer"
+    RefusedToken:
+      description: No token is needed here, but the one sent is not valid. Send none, or a valid one.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+        WWW-Authenticate:
+          description: The bearer challenge (RFC 6750) with the error.
           required: true
           schema:
             type: string
