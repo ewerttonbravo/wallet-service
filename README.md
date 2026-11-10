@@ -130,7 +130,7 @@ curl localhost:8080/openapi.yaml
 
 ### API collection
 
-[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first and then the errors, each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
+[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first, then the errors, then the operations endpoints (the probes and the contract), each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
 
 ```sh
 cd bruno && npx -y @usebruno/cli@4.3.0 run --env local -r
