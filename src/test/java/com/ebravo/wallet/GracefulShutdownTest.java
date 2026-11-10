@@ -12,6 +12,7 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.BufferedReader;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
@@ -273,7 +274,11 @@ class GracefulShutdownTest {
         private static String read(BufferedReader in, int length) throws IOException {
             var chars = new char[length];
             for (var read = 0; read < length; ) {
-                read += in.read(chars, read, length - read);
+                var count = in.read(chars, read, length - read);
+                if (count < 0) {
+                    throw new EOFException("closed in the middle of the body");
+                }
+                read += count;
             }
             return new String(chars);
         }
