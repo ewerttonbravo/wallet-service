@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ApiContractValidation.class})
 @ExtendWith(OutputCaptureExtension.class)
-class IssuerOutageTest {
+public class IssuerOutageTest {
 
     private static final String DETAIL = "The token cannot be checked now, retry the request";
 
@@ -77,7 +77,7 @@ class IssuerOutageTest {
     }
 
     /** Well-formed, so the decoder reaches for the issuer's keys to check the signature. */
-    static String bearer() {
+    public static String bearer() {
         var encoder = Base64.getUrlEncoder().withoutPadding();
         var header = encoder.encodeToString("{\"alg\":\"RS256\",\"typ\":\"JWT\",\"kid\":\"k\"}".getBytes(UTF_8));
         var claims = encoder.encodeToString("{\"sub\":\"someone\",\"exp\":4102444800}".getBytes(UTF_8));
