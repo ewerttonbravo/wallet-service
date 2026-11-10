@@ -12,6 +12,10 @@ info:
 
     Every response carries `X-Correlation-Id`: the caller's, when it sent a valid one, or a generated
     UUID. A malformed `X-Correlation-Id` is refused with `400` on every path.
+
+    Refusals HTTP itself defines, such as `405` for a method a path does not serve or `406` for an
+    `Accept` the service cannot answer, are not listed per operation. Nor is `500`, which a database
+    outage answers today with a generic error body.
 servers:
   - url: /
     description: The host that serves this contract.
@@ -152,6 +156,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "415":
+          $ref: "#/components/responses/NotJson"
         "503":
           $ref: "#/components/responses/Busy"
   /wallets/me/withdrawals:
@@ -187,6 +193,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "415":
+          $ref: "#/components/responses/NotJson"
         "503":
           $ref: "#/components/responses/Busy"
   /wallets/me/transfers:
@@ -224,6 +232,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "415":
+          $ref: "#/components/responses/NotJson"
         "503":
           $ref: "#/components/responses/Busy"
   /wallets/me/transactions:
@@ -454,6 +464,15 @@ components:
           schema:
             type: string
             pattern: "^Bearer"
+    NotJson:
+      description: The body is not sent as `application/json`. Nothing was posted.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     NoWallet:
       description: The caller has no wallet.
       headers:
