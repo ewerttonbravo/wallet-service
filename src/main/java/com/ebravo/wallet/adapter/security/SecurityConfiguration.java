@@ -54,8 +54,9 @@ class SecurityConfiguration {
                         .permitAll()
                         // The contract grants nothing by itself, and clients read it before holding a token.
                         .requestMatchers(HttpMethod.GET, "/openapi.yaml").permitAll()
-                        // The error page renders a failure already decided, such as an issuer that cannot be
-                        // reached; refusing it would answer that failure with 401, as if the token were bad.
+                        // The error page renders a failure already decided, such as a decoder that failed
+                        // while checking a token; refusing it would answer that failure with 401, as if the
+                        // token were bad.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server
