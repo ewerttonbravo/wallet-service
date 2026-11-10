@@ -44,8 +44,7 @@ class SecurityConfiguration {
 
     @Bean
     @Order(2)
-    SecurityFilterChain api(HttpSecurity http, JsonMapper json, OAuth2ResourceServerProperties resourceServer) {
-        IssuerKeys.requireIssuerAndKeySet(resourceServer.getJwt());
+    SecurityFilterChain api(HttpSecurity http, JsonMapper json) {
         var problems = new BearerTokenProblems(json);
         return http
                 .authorizeHttpRequests(requests -> requests
@@ -77,7 +76,10 @@ class SecurityConfiguration {
                 .build();
     }
 
-    /** The issuer's keys, read within a bounded time, so an issuer that cannot answer gets a quick 503. */
+    /**
+     * The issuer's keys, read within a bounded time, so an issuer that cannot answer gets a quick 503.
+     * Built at startup whatever else is configured, it refuses to start without the issuer and its key set.
+     */
     @Bean
     JwkSetUriJwtDecoderBuilderCustomizer issuerKeys(OAuth2ResourceServerProperties resourceServer) {
         return IssuerKeys.readWithinBounds(resourceServer.getJwt());
