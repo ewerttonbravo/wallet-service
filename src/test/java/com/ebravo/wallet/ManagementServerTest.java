@@ -44,6 +44,9 @@ class ManagementServerTest {
 
     @Test
     void servesMetricsWithoutATokenOnTheManagementPort() throws Exception {
+        // Request metrics exist once the application's port has answered a request.
+        assertThat(get(port, "/livez", null).statusCode()).isEqualTo(200);
+
         var scrape = get(managementPort, "/actuator/prometheus", null);
 
         assertThat(scrape.statusCode()).isEqualTo(200);
