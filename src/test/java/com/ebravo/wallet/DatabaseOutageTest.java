@@ -11,11 +11,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
@@ -39,6 +42,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Import({DatabaseOutageTest.OwnDatabase.class, ApiContractValidation.class})
 @DirtiesContext
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@ExtendWith(OutputCaptureExtension.class)
 class DatabaseOutageTest {
 
     @Autowired
@@ -78,6 +82,17 @@ class DatabaseOutageTest {
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .bodyJson().extractingPath("$.detail").isEqualTo("The service cannot reach its database, retry the request");
         assertThat(response).bodyText().doesNotContainIgnoringCase("hikari").doesNotContainIgnoringCase("jdbc");
+    }
+
+    /** Answered, the failure no longer reaches the access line, so searching by id must still find why. */
+    @Test
+    void logsTheFailureWithTheCorrelationId(CapturedOutput output) {
+        var response = mvc.get().uri("/wallets/me").with(jwt().jwt(token -> token.subject(anOwner().value()))).exchange();
+
+        var correlationId = response.getResponse().getHeader("X-Correlation-Id");
+        assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
+                .anyMatch(line -> line.contains("\"level\":\"ERROR\"")
+                        && line.contains("\"type\":\"org.springframework.dao.DataAccessResourceFailureException\""));
     }
 
     static Stream<Named<Function<MockMvcTester, MockMvcRequestBuilder>>> callsThatNeedTheDatabase() {
