@@ -493,8 +493,8 @@ components:
     Unavailable:
       description: |
         A wallet stayed locked by other operations, and nothing was posted; or the database is
-        unavailable. Retry the same request, with the same `Idempotency-Key` for a posting: it is
-        posted once.
+        unavailable. Retry the same request: a posting with the same `Idempotency-Key` is posted
+        once, and opening a wallet that was opened meanwhile answers `409`.
       headers:
         X-Correlation-Id:
           $ref: "#/components/headers/CorrelationId"
