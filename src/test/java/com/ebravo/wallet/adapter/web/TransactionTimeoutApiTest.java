@@ -38,7 +38,7 @@ class TransactionTimeoutApiTest {
 
     private static final String DETAIL = "The request took too long, retry the request";
     private static final Duration AT_LEAST = Duration.ofMillis(2500);
-    private static final Duration AT_MOST = Duration.ofSeconds(5);
+    private static final Duration AT_MOST = Duration.ofSeconds(4);
 
     @Autowired
     private MockMvcTester mvc;
