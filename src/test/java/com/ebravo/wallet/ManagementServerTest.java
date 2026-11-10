@@ -75,6 +75,14 @@ class ManagementServerTest {
         assertThat(health.body()).contains("\"status\":\"UP\"");
     }
 
+    /** The API's token check never runs on the management port, so a path it does not serve is simply not found. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/actuator/env", "/metrics"})
+    void findsNothingElseOnTheManagementPort(String path) throws Exception {
+        assertThat(get(managementPort, path, null).statusCode()).isEqualTo(404);
+        assertThat(get(managementPort, path, "not-a-token-of-this-service").statusCode()).isEqualTo(404);
+    }
+
     /** Not even to a valid token: a caller on the application's port never reaches the actuator. */
     @ParameterizedTest
     @ValueSource(strings = {"/actuator/prometheus", "/actuator/health", "/actuator"})
