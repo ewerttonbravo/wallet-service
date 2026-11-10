@@ -5,7 +5,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.hibernate.TransactionException;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionTimedOutException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -18,6 +20,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class SpringTransactions implements Transactions {
 
     static final int BUDGET_SECONDS = 3;
+
+    // Hibernate refuses its own statements past the deadline with this generic exception alone.
+    private static final String HIBERNATE_DEADLINE = "Transaction timeout expired";
 
     private final TransactionTemplate template;
 
@@ -52,10 +57,29 @@ class SpringTransactions implements Transactions {
         } catch (RuntimeException exception) {
             var cause = failure.get();
             if (cause == null || cause == exception) {
-                throw exception;
+                throw pastTheBudget(exception);
             }
             cause.addSuppressed(exception);
-            throw cause;
+            throw pastTheBudget(cause);
         }
+    }
+
+    /**
+     * A statement started past the budget is refused before it runs, but only Spring's own statements
+     * say so with a {@link TransactionTimedOutException}: Spring Data wraps it in a query error when
+     * it derives the query, and Hibernate throws a generic exception of its own for its statements,
+     * such as the refresh after a wallet lock. Either would read as a failure of the service.
+     */
+    private static RuntimeException pastTheBudget(RuntimeException failure) {
+        if (failure instanceof TransactionTimedOutException) {
+            return failure;
+        }
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof TransactionTimedOutException
+                    || cause instanceof TransactionException && HIBERNATE_DEADLINE.equals(cause.getMessage())) {
+                return new TransactionTimedOutException(cause.getMessage(), failure);
+            }
+        }
+        return failure;
     }
 }
