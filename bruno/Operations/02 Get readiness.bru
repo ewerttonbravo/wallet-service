@@ -1,0 +1,20 @@
+meta {
+  name: Get readiness
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{api}}/readyz
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq "UP"
+}
+
+docs {
+  Read without a token, as an orchestrator does: the instance gets traffic only while it is UP, which needs its database.
+}
