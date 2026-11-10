@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer. Operability comes next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer, and serves its OpenAPI contract. Operability comes next, in the order of the [roadmap](docs/roadmap.md).
 
 ## Build and test
 
@@ -18,7 +18,7 @@ Requires JDK 25 and a running Docker daemon: integration tests start their own P
 ./mvnw verify
 ```
 
-The build fails if line or branch coverage of the domain or application code drops below 100%, if a mutant of the domain or application code survives the tests (PIT, report in `target/pit-reports`), or if the domain or application layers depend on any framework.
+The build fails if line or branch coverage of the domain or application code drops below 100%, if a mutant of the domain or application code survives the tests (PIT, report in `target/pit-reports`), if the domain or application layers depend on any framework, or if an API test sends or receives something the [OpenAPI contract](src/main/resources/openapi.yaml) does not describe.
 
 With Colima instead of Docker Desktop, point Testcontainers to its socket first:
 
@@ -103,6 +103,14 @@ export SPRING_DATASOURCE_USERNAME=wallet
 export SPRING_DATASOURCE_PASSWORD=wallet
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000/local
 ./mvnw spring-boot:run
+```
+
+### API contract
+
+The service serves its OpenAPI 3.1 contract without a token. The same file is [`src/main/resources/openapi.yaml`](src/main/resources/openapi.yaml), and every API test checks its exchanges against it:
+
+```sh
+curl localhost:8080/openapi.yaml
 ```
 
 ### API collection
