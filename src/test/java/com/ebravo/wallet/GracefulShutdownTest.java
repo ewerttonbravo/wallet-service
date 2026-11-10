@@ -91,8 +91,7 @@ class GracefulShutdownTest {
 
     @Test
     void finishesAPostingInFlightWhenShutdownBegins() throws Exception {
-        var deposit = CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
-        hold.awaitArrival();
+        var deposit = holdADeposit();
 
         var shutdown = beginShutdown();
         awaitConnectionsRefused();
@@ -110,8 +109,7 @@ class GracefulShutdownTest {
         try (var accepted = new Socket("localhost", port)) {
             assertThat(accepted.isConnected()).as("the port accepts connections before the shutdown").isTrue();
         }
-        CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
-        hold.awaitArrival();
+        holdADeposit();
 
         var shutdown = beginShutdown();
 
@@ -130,8 +128,7 @@ class GracefulShutdownTest {
             var first = send(idle, request("GET", "/wallets/me", "", false)).orElseThrow();
             assertThat(first.status()).isEqualTo(200);
             assertThat(first.headers()).as("the connection is kept alive").doesNotContainEntry("connection", "close");
-            var held = CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
-            hold.awaitArrival();
+            var held = holdADeposit();
             var shutdown = beginShutdown();
             awaitConnectionsRefused();
 
@@ -150,13 +147,19 @@ class GracefulShutdownTest {
      */
     @Test
     void stopsAtTheDrainBoundWhenARequestDoesNotFinish() throws Exception {
-        CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
-        hold.awaitArrival();
+        holdADeposit();
         var start = System.nanoTime();
 
         service.close();
 
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isBetween(Duration.ofSeconds(10), Duration.ofSeconds(15));
+    }
+
+    /** A deposit of 10.00 on a connection of its own, held in flight until the test releases it. */
+    private CompletableFuture<Optional<Response>> holdADeposit() throws InterruptedException {
+        var deposit = CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
+        hold.awaitArrival();
+        return deposit;
     }
 
     private CompletableFuture<Void> beginShutdown() {
@@ -167,8 +170,8 @@ class GracefulShutdownTest {
     private void awaitConnectionsRefused() {
         var deadline = Instant.now().plusSeconds(5);
         while (Instant.now().isBefore(deadline)) {
-            try (var connection = new Socket("localhost", port)) {
-                Thread.onSpinWait();
+            try (var accepted = new Socket("localhost", port)) {
+                Thread.onSpinWait(); // accepted: the server socket is not closed yet
             } catch (IOException refused) {
                 return;
             }
