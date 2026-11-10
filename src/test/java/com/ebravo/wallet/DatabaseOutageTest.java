@@ -93,6 +93,7 @@ class DatabaseOutageTest {
         var response = mvc.get().uri("/wallets/me").with(jwt().jwt(token -> token.subject(anOwner().value()))).exchange();
 
         var correlationId = response.getResponse().getHeader("X-Correlation-Id");
+        assertThat(correlationId).isNotNull();
         assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
                 .anyMatch(line -> line.contains("\"level\":\"ERROR\"")
                         && line.contains("Caused by: java.sql.SQLTransientConnectionException"));
