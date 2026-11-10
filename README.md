@@ -120,6 +120,18 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI=http://localhost:9000
 
 Run from source, the service listens on 8080 for the API and 8081 for the actuator (`curl localhost:8081/actuator/prometheus`). If 8081 is taken, set `MANAGEMENT_SERVER_PORT` to another port; the service refuses to start when it is the API's port, since the actuator answers without a token.
 
+### Debugging
+
+With the same environment, start the service with a debug agent and attach the IDE's remote debugger to port 5005:
+
+```sh
+./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+```
+
+To debug a test, run it with `./mvnw -Dmaven.surefire.debug -Dtest=WalletServiceTest test`: it waits on port 5005 until the debugger attaches.
+
+A posting or wallet opening runs within a three-second budget the database keeps. A breakpoint held longer inside one lets PostgreSQL end the transaction, and the request answers `503`.
+
 ### API contract
 
 The service serves its OpenAPI 3.1 contract without a token. The same file is [`src/main/resources/openapi.yaml`](src/main/resources/openapi.yaml), and every API test checks its exchanges against it:
