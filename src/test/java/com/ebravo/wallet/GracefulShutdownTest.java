@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -141,6 +142,21 @@ class GracefulShutdownTest {
             shutdown.get();
         }
         assertThat(balanceInTheDatabase()).isEqualByComparingTo("10.00");
+    }
+
+    /**
+     * The drain waits long enough for the longest request the service bounds itself, and ends
+     * before the platform kills the process: Compose waits 15 seconds before {@code SIGKILL}.
+     */
+    @Test
+    void stopsAtTheDrainBoundWhenARequestDoesNotFinish() throws Exception {
+        CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
+        hold.awaitArrival();
+        var start = System.nanoTime();
+
+        service.close();
+
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isBetween(Duration.ofSeconds(10), Duration.ofSeconds(15));
     }
 
     private CompletableFuture<Void> beginShutdown() {
