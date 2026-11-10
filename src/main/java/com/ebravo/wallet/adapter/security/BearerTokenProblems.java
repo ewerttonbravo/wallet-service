@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -52,18 +53,21 @@ final class BearerTokenProblems implements AuthenticationEntryPoint, AccessDenie
     }
 
     /**
-     * Spring raises {@link AuthenticationServiceException} when the decoder fails for another reason
-     * than the token, such as keys that cannot be read; its default handler rethrows it to the error
-     * page, which answers 500. Any other failure is the token's, and is challenged.
+     * Spring raises {@link AuthenticationServiceException} over a {@link JwtException} when the
+     * decoder fails for another reason than the token, such as keys that cannot be read. Any other
+     * service failure, which the filter also catches from further down the chain, goes to the error
+     * page, as Spring's own handler sends it. Any other failure is the token's, and is challenged.
      */
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException failure) throws IOException, ServletException {
-        if (failure instanceof AuthenticationServiceException) {
+        if (failure instanceof AuthenticationServiceException && failure.getCause() instanceof JwtException) {
             LOG.error("The token could not be checked", failure);
             response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
             response.setHeader(HttpHeaders.RETRY_AFTER, "1");
             write(request, response, "The token cannot be checked now, retry the request");
+        } else if (failure instanceof AuthenticationServiceException) {
+            throw failure;
         } else {
             commence(request, response, failure);
         }
