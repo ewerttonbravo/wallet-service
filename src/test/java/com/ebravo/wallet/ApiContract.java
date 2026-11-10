@@ -7,7 +7,7 @@ import com.atlassian.oai.validator.model.Request;
 import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.SimpleValidationReportFormat;
 import com.atlassian.oai.validator.report.ValidationReport;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -35,7 +35,7 @@ public final class ApiContract {
      * request means the contract and the service disagree.
      */
     public void verify(MockHttpServletRequest request, MockHttpServletResponse response) {
-        var report = HttpStatus.valueOf(response.getStatus()).is2xxSuccessful()
+        var report = HttpStatusCode.valueOf(response.getStatus()).is2xxSuccessful()
                 ? validator.validate(MockMvcRequest.of(request), MockMvcResponse.of(response))
                 : validator.validateResponse(
                         request.getRequestURI(), Request.Method.valueOf(request.getMethod()), MockMvcResponse.of(response));
