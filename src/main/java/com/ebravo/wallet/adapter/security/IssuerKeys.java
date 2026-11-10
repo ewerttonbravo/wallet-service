@@ -11,6 +11,8 @@ import com.nimbusds.jose.util.DefaultResourceRetriever;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.JwkSetUriJwtDecoderBuilderCustomizer;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.util.StringUtils;
@@ -23,7 +25,10 @@ import org.springframework.util.StringUtils;
 final class IssuerKeys {
 
     /** Like the wait for a database connection: an answer, a 503 if need be, in about two seconds. */
-    private static final int WAIT_MILLIS = (int) Duration.ofSeconds(2).toMillis();
+    private static final Duration WAIT = Duration.ofSeconds(2);
+    private static final int WAIT_MILLIS = (int) WAIT.toMillis();
+    /** What Spring Security asks a key set for. */
+    private static final String KEY_SET_TYPES = "application/json, application/jwk-set+json";
 
     private IssuerKeys() {
     }
@@ -43,7 +48,9 @@ final class IssuerKeys {
 
     private static JWKSource<SecurityContext> keySet(String uri) {
         try {
-            var retriever = new DefaultResourceRetriever(WAIT_MILLIS, WAIT_MILLIS, JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT);
+            var socket = new DefaultResourceRetriever(WAIT_MILLIS, WAIT_MILLIS, JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT);
+            socket.setHeaders(Map.of("Accept", List.of(KEY_SET_TYPES)));
+            var retriever = new DeadlineRetriever(socket, WAIT);
             return JWKSourceBuilder.<SecurityContext>create(URI.create(uri).toURL(), retriever)
                     .cache(JWKSourceBuilder.DEFAULT_CACHE_TIME_TO_LIVE, WAIT_MILLIS)
                     .refreshAheadCache(false)
