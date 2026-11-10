@@ -24,7 +24,8 @@ class SecurityConfiguration {
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server
                         .jwt(Customizer.withDefaults())
-                        .authenticationEntryPoint(problems))
+                        .authenticationEntryPoint(problems)
+                        .accessDeniedHandler(problems))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Bearer tokens only, no cookies: there is no ambient credential for CSRF to abuse.
                 .csrf(CsrfConfigurer::disable)
