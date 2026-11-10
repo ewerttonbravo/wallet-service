@@ -17,6 +17,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @IntegrationTest
@@ -85,10 +87,18 @@ class ApiContractApiTest {
     private Set<String> mappedOperations() {
         return mappings.getHandlerMethods().entrySet().stream()
                 .filter(handler -> handler.getValue().getBeanType().getPackageName().startsWith("com.ebravo.wallet"))
-                .flatMap(handler -> handler.getKey().getMethodsCondition().getMethods().stream()
+                .flatMap(handler -> methodsOf(handler.getKey()).stream()
                         .flatMap(method -> handler.getKey().getPatternValues().stream()
-                                .map(path -> method.name() + " " + path)))
+                                .map(path -> method + " " + path)))
                 .collect(Collectors.toSet());
+    }
+
+    // A mapping that names no method serves every one; ANY matches no documented operation.
+    private static Set<String> methodsOf(RequestMappingInfo mapping) {
+        var methods = mapping.getMethodsCondition().getMethods();
+        return methods.isEmpty()
+                ? Set.of("ANY")
+                : methods.stream().map(RequestMethod::name).collect(Collectors.toSet());
     }
 
     private static Set<String> documentedOperations() throws IOException {
