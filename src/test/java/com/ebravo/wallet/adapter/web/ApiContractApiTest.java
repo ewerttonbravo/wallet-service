@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,8 @@ class ApiContractApiTest {
 
     // Actuator endpoints are documented too, but they are not this service's controllers.
     private static final String ACTUATOR = "/actuator/";
+    private static final String CONTRACT = read();
+    private static final SwaggerParseResult PARSED = new OpenAPIV3Parser().readContents(CONTRACT);
 
     @Autowired
     private MockMvcTester mvc;
@@ -42,7 +45,7 @@ class ApiContractApiTest {
         // The very file the tests check exchanges against, so what is served is what is verified.
         assertThat(served.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .startsWith("openapi: 3.1.0")
-                .isEqualTo(contract());
+                .isEqualTo(CONTRACT);
     }
 
     /** The contract is one small document: a range of it is no use, and would be a status to document. */
@@ -51,21 +54,19 @@ class ApiContractApiTest {
         var served = mvc.get().uri("/openapi.yaml").header(HttpHeaders.RANGE, "bytes=0-9").exchange();
 
         assertThat(served).hasStatusOk();
-        assertThat(served.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(contract());
+        assertThat(served.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(CONTRACT);
     }
 
     @Test
-    void contractParsesWithoutMessages() throws IOException {
-        var parsed = parse();
-
-        assertThat(parsed.getMessages()).isEmpty();
-        assertThat(parsed.getOpenAPI().getOpenapi()).isEqualTo("3.1.0");
+    void contractParsesWithoutMessages() {
+        assertThat(PARSED.getMessages()).isEmpty();
+        assertThat(PARSED.getOpenAPI().getOpenapi()).isEqualTo("3.1.0");
     }
 
     /** The validator ignores parameters declared on a path item, so they would go unchecked there. */
     @Test
-    void declaresParametersOnOperationsOnly() throws IOException {
-        var paths = parse().getOpenAPI().getPaths();
+    void declaresParametersOnOperationsOnly() {
+        var paths = PARSED.getOpenAPI().getPaths();
 
         assertThat(paths).isNotEmpty();
         assertThat(paths.entrySet())
@@ -76,7 +77,7 @@ class ApiContractApiTest {
 
     /** A route no test calls would escape the check on exchanges; this one sees every route. */
     @Test
-    void documentsEveryOperationTheServiceMaps() throws IOException {
+    void documentsEveryOperationTheServiceMaps() {
         var mapped = mappedOperations();
 
         // An empty scan would match an empty contract; the service maps at least this one.
@@ -101,8 +102,8 @@ class ApiContractApiTest {
                 : methods.stream().map(RequestMethod::name).collect(Collectors.toSet());
     }
 
-    private static Set<String> documentedOperations() throws IOException {
-        return parse().getOpenAPI().getPaths().entrySet().stream()
+    private static Set<String> documentedOperations() {
+        return PARSED.getOpenAPI().getPaths().entrySet().stream()
                 .filter(path -> !path.getKey().startsWith(ACTUATOR))
                 .flatMap(path -> path.getValue().readOperationsMap().keySet().stream()
                         .map(PathItem.HttpMethod::name)
@@ -110,11 +111,11 @@ class ApiContractApiTest {
                 .collect(Collectors.toSet());
     }
 
-    private static SwaggerParseResult parse() throws IOException {
-        return new OpenAPIV3Parser().readContents(contract());
-    }
-
-    private static String contract() throws IOException {
-        return new ClassPathResource("openapi.yaml").getContentAsString(StandardCharsets.UTF_8);
+    private static String read() {
+        try {
+            return new ClassPathResource("openapi.yaml").getContentAsString(StandardCharsets.UTF_8);
+        } catch (IOException missing) {
+            throw new UncheckedIOException(missing);
+        }
     }
 }
