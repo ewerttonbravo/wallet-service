@@ -1,0 +1,670 @@
+openapi: 3.1.0
+info:
+  title: Wallet Service
+  version: 0.0.1
+  description: |
+    Wallets, deposits, withdrawals and transfers on a double-entry, append-only ledger.
+
+    The wallet is always the caller's own, identified by the subject of a bearer JWT issued to the
+    `wallet-service` audience. Amounts are decimal strings in BRL, never JSON numbers. Timestamps are
+    ISO-8601 in UTC. A request that is not well-formed is refused with `400`; a well-formed request that
+    breaks a rule, with `422`. Errors other than `401` are Problem Details (RFC 9457).
+
+    Every response carries `X-Correlation-Id`: the caller's, when it sent a valid one, or a generated
+    UUID. A malformed `X-Correlation-Id` is refused with `400` on every path.
+
+    Refusals HTTP itself defines, such as `405` for a method a path does not serve or `406` for an
+    `Accept` the service cannot answer, are not listed per operation. Nor is `500`, which a database
+    outage answers today with a generic error body.
+servers:
+  - url: /
+    description: The host that serves this contract.
+security:
+  - bearer: []
+paths:
+  /wallets:
+    post:
+      operationId: openWallet
+      summary: Open the caller's wallet
+      description: A user owns at most one wallet, opened with a zero balance.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "201":
+          description: The wallet was opened.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+            Location:
+              description: Always `/wallets/me`.
+              required: true
+              schema:
+                type: string
+                const: /wallets/me
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: The caller already has a wallet.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /wallets/me:
+    get:
+      operationId: getWallet
+      summary: Read the caller's wallet
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: The caller's wallet.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NoWallet"
+  /wallets/me/balance:
+    get:
+      operationId: getBalance
+      summary: Read the current balance, or the balance at a past instant
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - name: at
+          in: query
+          required: false
+          description: |
+            An ISO-8601 instant with offset, such as `2026-11-09T10:00:00Z`; a positive offset is sent
+            encoded (`%2B`). The balance is the one right after the last transaction posted at or before
+            it, `0.00` from the wallet's opening until its first transaction. Without `at`, the current
+            balance. An instant finer than the microsecond is read at the microsecond it falls in.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 64
+      responses:
+        "200":
+          description: The balance.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NoWallet"
+        "422":
+          description: "`at` is before the wallet was opened, or in the future."
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /wallets/me/deposits:
+    post:
+      operationId: deposit
+      summary: Deposit money settled elsewhere into the caller's wallet
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AmountRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/Posted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NoWallet"
+        "422":
+          description: |
+            The amount is not positive, has more than 2 decimal places or is beyond the storable bound,
+            the balance would exceed that bound, or the key was already used for another request.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          $ref: "#/components/responses/NotJson"
+        "503":
+          $ref: "#/components/responses/Busy"
+  /wallets/me/withdrawals:
+    post:
+      operationId: withdraw
+      summary: Withdraw money from the caller's wallet
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AmountRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/Posted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NoWallet"
+        "422":
+          description: |
+            The amount is not positive, has more than 2 decimal places or is beyond the storable bound,
+            the balance is not enough, or the key was already used for another request.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          $ref: "#/components/responses/NotJson"
+        "503":
+          $ref: "#/components/responses/Busy"
+  /wallets/me/transfers:
+    post:
+      operationId: transfer
+      summary: Transfer money from the caller's wallet to another wallet
+      description: Both wallets are posted in one ledger transaction, or neither is.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/Posted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NoWallet"
+        "422":
+          description: |
+            The amount breaks the deposit rules, the balance is not enough, the recipient is the caller's
+            own wallet or does not exist, its balance would exceed the storable bound, or the key was
+            already used for another request.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          $ref: "#/components/responses/NotJson"
+        "503":
+          $ref: "#/components/responses/Busy"
+  /wallets/me/transactions:
+    get:
+      operationId: listTransactions
+      summary: List the caller's transactions, newest first
+      description: Newest first means in the reverse of the order they were posted.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 2147483647
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: One page of the history; a page past the end has no transactions.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NoWallet"
+  /wallets/me/transactions/{id}:
+    get:
+      operationId: getTransaction
+      summary: Read one of the caller's transactions
+      description: Both wallets of a transfer read it at the same address, each as its own side.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The transaction as the caller's wallet sees it.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The caller has no wallet, or no such transaction touches it.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /openapi.yaml:
+    get:
+      operationId: getContract
+      summary: This contract
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: The OpenAPI contract of the service.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
+  /actuator/health:
+    get:
+      operationId: getHealth
+      summary: Health of the service
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          $ref: "#/components/responses/Up"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
+        "503":
+          $ref: "#/components/responses/Down"
+  /actuator/health/liveness:
+    get:
+      operationId: getLiveness
+      summary: Liveness probe
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          $ref: "#/components/responses/Up"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
+        "503":
+          $ref: "#/components/responses/Down"
+  /actuator/health/readiness:
+    get:
+      operationId: getReadiness
+      summary: Readiness probe
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          $ref: "#/components/responses/Up"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/RefusedToken"
+        "503":
+          $ref: "#/components/responses/Down"
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A JWT whose subject is the user and whose audience is `wallet-service`.
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Stored with the transactions the request posts and returned on the response.
+      schema:
+        $ref: "#/components/schemas/Token"
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        New for each operation, and owned by the caller's wallet. Sent again with the same request, the
+        operation answers with the transaction it already posted, exactly as the first time, and posts
+        nothing. Sent with another operation, amount or recipient, it is refused with `422`. Amounts are
+        compared as money: `"10.5"` and `"10.50"` are the same request.
+      schema:
+        $ref: "#/components/schemas/Token"
+  headers:
+    CorrelationId:
+      description: The caller's correlation id, or one generated for the request.
+      required: true
+      schema:
+        $ref: "#/components/schemas/Token"
+  responses:
+    Posted:
+      description: The transaction was posted, or was already posted with this key.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+        Location:
+          description: Where the transaction is read back.
+          required: true
+          schema:
+            type: string
+            pattern: "^/wallets/me/transactions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Transaction"
+    BadRequest:
+      description: |
+        The request is not well-formed: invalid JSON, a field missing or of the wrong type, a header or
+        parameter malformed or missing. The rejected value is never echoed.
+      headers:
+        X-Correlation-Id:
+          description: Absent when the correlation id itself was refused.
+          required: false
+          schema:
+            $ref: "#/components/schemas/Token"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: The bearer token is missing, invalid, expired, from another issuer or for another audience.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+        WWW-Authenticate:
+          description: The bearer challenge (RFC 6750), with the error when a token was sent.
+          required: true
+          schema:
+            type: string
+            pattern: "^Bearer"
+    RefusedToken:
+      description: No token is needed here, but the one sent is not valid. Send none, or a valid one.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+        WWW-Authenticate:
+          description: The bearer challenge (RFC 6750) with the error.
+          required: true
+          schema:
+            type: string
+            pattern: "^Bearer"
+    NotJson:
+      description: The body is not sent as `application/json`. Nothing was posted.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NoWallet:
+      description: The caller has no wallet.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Busy:
+      description: A wallet stayed locked by other operations. Nothing was posted, so a retry is safe.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+        Retry-After:
+          description: Seconds to wait before retrying.
+          required: true
+          schema:
+            type: string
+            const: "1"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Up:
+      description: Up.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/vnd.spring-boot.actuator.v3+json:
+          schema:
+            $ref: "#/components/schemas/Health"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Health"
+    Down:
+      description: Down or out of service.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/vnd.spring-boot.actuator.v3+json:
+          schema:
+            $ref: "#/components/schemas/Health"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Health"
+  schemas:
+    Token:
+      description: 1 to 64 letters, digits, `.`, `_`, `:` or `-`, sent as is.
+      type: string
+      pattern: "^[A-Za-z0-9._:-]{1,64}$"
+    WalletId:
+      type: string
+      format: uuid
+      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    Instant:
+      description: ISO-8601 in UTC, to the microsecond.
+      type: string
+      format: date-time
+    Currency:
+      type: string
+      const: BRL
+    RequestAmount:
+      description: |
+        A decimal string such as `"10.50"`; a JSON number is refused with `400`. It must be positive,
+        with at most 2 decimal places and at most 99999999999999999.99, or it is refused with `422`;
+        it is never rounded.
+      type: string
+      pattern: "^-?[0-9]+(\\.[0-9]+)?$"
+      maxLength: 32
+    AmountRequest:
+      description: Other fields are ignored.
+      type: object
+      additionalProperties: true
+      required: [amount]
+      properties:
+        amount:
+          $ref: "#/components/schemas/RequestAmount"
+    TransferRequest:
+      description: The sender is always the caller. Other fields are ignored.
+      type: object
+      additionalProperties: true
+      required: [recipientWalletId, amount]
+      properties:
+        recipientWalletId:
+          description: The recipient's wallet id, shared by its owner, written in full.
+          $ref: "#/components/schemas/WalletId"
+        amount:
+          $ref: "#/components/schemas/RequestAmount"
+    Wallet:
+      type: object
+      additionalProperties: false
+      required: [id, currency, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/WalletId"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    Balance:
+      type: object
+      additionalProperties: false
+      required: [balance, currency]
+      properties:
+        balance:
+          type: string
+          pattern: "^[0-9]+\\.[0-9]{2}$"
+        currency:
+          $ref: "#/components/schemas/Currency"
+    Transaction:
+      description: A transaction as the caller's wallet sees it.
+      type: object
+      additionalProperties: false
+      required: [id, type, amount, balance, currency, correlationId, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEPOSIT, WITHDRAWAL, TRANSFER]
+        amount:
+          description: Signed, negative when money left the wallet.
+          type: string
+          pattern: "^-?[0-9]+\\.[0-9]{2}$"
+        balance:
+          description: The wallet's balance right after the transaction.
+          type: string
+          pattern: "^[0-9]+\\.[0-9]{2}$"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        counterpartyWalletId:
+          description: The other wallet of a transfer; absent on deposits and withdrawals.
+          $ref: "#/components/schemas/WalletId"
+        correlationId:
+          $ref: "#/components/schemas/Token"
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    TransactionPage:
+      type: object
+      additionalProperties: false
+      required: [transactions, page, size, totalElements, totalPages]
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          description: Every transaction of the wallet.
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+        next:
+          description: The path of the next page; absent on the last page and past it.
+          type: string
+          pattern: "^/wallets/me/transactions\\?page=[0-9]+&size=[0-9]+$"
+    Problem:
+      description: Problem Details (RFC 9457). An absent `type` means `about:blank`.
+      type: object
+      additionalProperties: false
+      required: [title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+    Health:
+      description: The aggregate health may also list its groups and components.
+      type: object
+      additionalProperties: true
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN, OUT_OF_SERVICE, UNKNOWN]

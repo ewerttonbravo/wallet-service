@@ -12,6 +12,8 @@ import com.ebravo.wallet.LocalIssuer;
 import com.ebravo.wallet.domain.OwnerId;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -48,6 +50,20 @@ class JwtAuthenticationTest {
     @Test
     void rejectsATokenWhoseClaimsWereAltered() {
         assertRejected(withSubject(issuer.tokenFor(anOwner(), AUDIENCE), anOwner()));
+    }
+
+    /** Public paths need no token, but a token sent there is still validated, and a bad one refused. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/openapi.yaml", "/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"})
+    void rejectsAnInvalidTokenOnPublicPathsToo(String path) {
+        var forged = withSubject(issuer.tokenFor(anOwner(), AUDIENCE), anOwner());
+
+        // The same path answers without a token, so only the token explains the refusal.
+        assertThat(mvc.get().uri(path)).hasStatusOk();
+        var result = mvc.get().uri(path).header(AUTHORIZATION, bearer(forged)).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(result.getResponse().getHeader(WWW_AUTHENTICATE)).contains("error=\"invalid_token\"");
     }
 
     // A fresh owner has no wallet: an accepted token answers 404, so 401 can only mean rejection.

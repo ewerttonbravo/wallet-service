@@ -26,7 +26,7 @@ This document defines what the Wallet Service must do (functional requirements),
 | NFR6 | Monetary precision | `BigDecimal` with scale 2. Single currency: BRL. |
 | NFR7 | API contract | REST over HTTP with JSON, documented with OpenAPI. Errors follow Problem Details (RFC 9457). Timestamps are ISO-8601 with offset; storage is UTC. |
 | NFR8 | Persistence | PostgreSQL with versioned schema migrations. |
-| NFR9 | Security | Every endpoint requires a JWT, validated by the service as an OAuth2 resource server. The token subject identifies the user; users can only read and move money from their own wallet. TLS is terminated by the infrastructure (gateway or ingress), not by the service. |
+| NFR9 | Security | Every endpoint except health and the API contract requires a JWT, validated by the service as an OAuth2 resource server. The token subject identifies the user; users can only read and move money from their own wallet. TLS is terminated by the infrastructure (gateway or ingress), not by the service. |
 | NFR10 | Ease of running | Docker is the only prerequisite. One command starts the service, its database and a local token issuer. Tests provision their own database and token issuer. |
 | NFR11 | Testability | 100% line and branch coverage of the domain and application layers, and every mutant there killed, enforced by the build. Adapters are tested where they hold behavior of this service, not to cover framework glue. The domain is independent of frameworks and tested with plain unit tests. |
 

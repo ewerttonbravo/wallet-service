@@ -276,6 +276,20 @@ class TransactionApiTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {DEPOSITS, WITHDRAWALS, "/wallets/me/transfers"})
+    void refusesABodyThatIsNotJson(String path) {
+        var owner = aWalletOwner();
+        post(owner, DEPOSITS, amount("10.00"));
+
+        var result = mvc.post().uri(path).with(tokenOf(owner)).header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
+                .contentType(MediaType.TEXT_PLAIN).content(amount("1.00")).exchange();
+
+        // The same body sent as JSON is posted (depositsIntoTheCallersWallet), so the media type is the refusal.
+        assertThat(result).hasStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertBalance(owner, "10.00");
+    }
+
+    @ParameterizedTest
     @CsvSource({"{\"amount\": null}", "{\"amount\": \"abc\"}"})
     void explainsHowToWriteAnAmount(String body) {
         assertProblem(post(aWalletOwner(), DEPOSITS, body), HttpStatus.BAD_REQUEST,
