@@ -72,12 +72,12 @@ class WalletProblemHandlerTest {
 
     /**
      * Whether a read could not get a connection or a posting could not start its transaction, the
-     * database is out of reach. Not a refusal: {@code registersEveryReasonAtZero} counts none for it.
+     * database is unavailable. Not a refusal: {@code registersEveryReasonAtZero} counts none for it.
      */
     @ParameterizedTest
     @MethodSource("databaseFailures")
-    void mapsADatabaseThatCannotBeReachedToServiceUnavailable(RuntimeException failure) {
-        var response = handler.handleDatabaseUnreachable(failure);
+    void mapsADatabaseThatIsUnavailableToServiceUnavailable(RuntimeException failure) {
+        var response = handler.handleDatabaseUnavailable(failure);
 
         assertThat(response.getStatusCode().value()).isEqualTo(503);
         assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("1");

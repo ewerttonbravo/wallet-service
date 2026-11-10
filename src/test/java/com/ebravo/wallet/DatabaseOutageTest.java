@@ -73,7 +73,7 @@ class DatabaseOutageTest {
      */
     @ParameterizedTest
     @MethodSource("callsThatNeedTheDatabase")
-    void answersServiceUnavailableWhenTheDatabaseCannotBeReached(Function<MockMvcTester, MockMvcRequestBuilder> call) {
+    void answersServiceUnavailableWhenTheDatabaseIsUnavailable(Function<MockMvcTester, MockMvcRequestBuilder> call) {
         var response = call.apply(mvc).with(jwt().jwt(token -> token.subject(anOwner().value()))).exchange();
 
         assertThat(response)

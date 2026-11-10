@@ -83,14 +83,14 @@ class WalletProblemHandler {
     /**
      * A query could not get or keep a connection, or a posting could not start its transaction: the
      * database is down, or the pool is full. Spring files a connection failure as a resource failure,
-     * lasting or transient; neither tells the cases apart, the logged cause does. Retrying the same
-     * request is safe; a posting carries its idempotency key, so it posts once.
+     * lasting or transient; neither tells the cases apart, the logged cause does. Retrying is safe: a
+     * posting carries its idempotency key, so it posts once, and a wallet opened meanwhile answers 409.
      */
     @ExceptionHandler({
             DataAccessResourceFailureException.class,
             TransientDataAccessResourceException.class,
             CannotCreateTransactionException.class})
-    ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
+    ResponseEntity<ProblemDetail> handleDatabaseUnavailable(RuntimeException exception) {
         LOG.error("The database is unavailable", exception);
         return retryLater("The database is unavailable, retry the request");
     }
