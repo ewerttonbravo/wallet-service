@@ -19,8 +19,9 @@ info:
 
     Refusals HTTP itself defines, such as `405` for a method a path does not serve or `406` for an
     `Accept` the service cannot answer, are not listed per operation. Nor is `500`, a failure of the
-    service itself, such as an issuer whose keys cannot be read, answered with a generic error body.
-    A database that is unavailable is `503` with `Retry-After`, listed on every operation.
+    service itself, answered with a generic error body. A database that is unavailable, or a token
+    that cannot be checked because the issuer's keys cannot be read, is `503` with `Retry-After`,
+    listed on every operation.
 servers:
   - url: /
     description: The host that serves this contract.
@@ -347,6 +348,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/RefusedToken"
+        "503":
+          $ref: "#/components/responses/TokenUnchecked"
   /livez:
     get:
       operationId: getLiveness
@@ -492,9 +495,10 @@ components:
             $ref: "#/components/schemas/Problem"
     Unavailable:
       description: |
-        A wallet stayed locked by other operations, and nothing was posted; or the database is
-        unavailable. Retry the same request: a posting with the same `Idempotency-Key` is posted
-        once, and opening a wallet that was opened meanwhile answers `409`.
+        A wallet stayed locked by other operations, and nothing was posted; the database is
+        unavailable; or the token cannot be checked, because the issuer's keys cannot be read. Retry
+        the same request: a posting with the same `Idempotency-Key` is posted once, and opening a
+        wallet that was opened meanwhile answers `409`.
       headers:
         X-Correlation-Id:
           $ref: "#/components/headers/CorrelationId"
@@ -521,10 +525,17 @@ components:
           schema:
             $ref: "#/components/schemas/Health"
     Down:
-      description: Down or out of service.
+      description: |
+        Down or out of service, as health; or, when a token is sent, the token cannot be checked
+        because the issuer's keys cannot be read, as Problem Details with `Retry-After`. Send none.
       headers:
         X-Correlation-Id:
           $ref: "#/components/headers/CorrelationId"
+        Retry-After:
+          description: Seconds to wait before retrying, when a token could not be checked.
+          schema:
+            type: string
+            const: "1"
       content:
         application/vnd.spring-boot.actuator.v3+json:
           schema:
@@ -532,6 +543,26 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Health"
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    TokenUnchecked:
+      description: |
+        No token is needed here, but the one sent cannot be checked, because the issuer's keys cannot
+        be read. Retry, or send none.
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+        Retry-After:
+          description: Seconds to wait before retrying.
+          required: true
+          schema:
+            type: string
+            const: "1"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
   schemas:
     Token:
       description: 1 to 64 letters, digits, `.`, `_`, `:` or `-`, sent as is.

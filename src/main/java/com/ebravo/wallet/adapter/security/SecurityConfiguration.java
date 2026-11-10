@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.JwkSetUriJwtDecoderBuilderCustomizer;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,9 +14,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 import tools.jackson.databind.json.JsonMapper;
@@ -49,18 +53,36 @@ class SecurityConfiguration {
                         .permitAll()
                         // The contract grants nothing by itself, and clients read it before holding a token.
                         .requestMatchers(HttpMethod.GET, "/openapi.yaml").permitAll()
-                        // The error page renders a failure already decided, such as an issuer that cannot be
-                        // reached; refusing it would answer that failure with 401, as if the token were bad.
+                        // The error page renders a failure already decided, such as a decoder that failed
+                        // while checking a token; refusing it would answer that failure with 401, as if the
+                        // token were bad.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server
                         .jwt(Customizer.withDefaults())
                         .authenticationEntryPoint(problems)
-                        .accessDeniedHandler(problems))
+                        .accessDeniedHandler(problems)
+                        // The configurer offers no setter for it: a token that cannot be checked is 503.
+                        .withObjectPostProcessor(new ObjectPostProcessor<BearerTokenAuthenticationFilter>() {
+                            @Override
+                            public <O extends BearerTokenAuthenticationFilter> O postProcess(O filter) {
+                                filter.setAuthenticationFailureHandler(problems);
+                                return filter;
+                            }
+                        }))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Bearer tokens only, no cookies: there is no ambient credential for CSRF to abuse.
                 .csrf(CsrfConfigurer::disable)
                 .build();
+    }
+
+    /**
+     * The issuer's keys, read within a bounded time, so an issuer that cannot answer gets a quick 503.
+     * Built at startup whatever else is configured, it refuses to start without the issuer and its key set.
+     */
+    @Bean
+    JwkSetUriJwtDecoderBuilderCustomizer issuerKeys(OAuth2ResourceServerProperties resourceServer) {
+        return IssuerKeys.readWithinBounds(resourceServer.getJwt());
     }
 
     /**

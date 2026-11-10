@@ -6,8 +6,8 @@ import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  * Points the service at the local issuer before the context refreshes. A dynamic property
- * registered later would come too late: the JWT decoder is auto-configured only when the issuer
- * URI is already set.
+ * registered later would come too late: the JWT decoder is auto-configured only when its URIs are
+ * already set. The key set is named, as the service requires, not discovered.
  */
 final class LocalIssuerInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
@@ -16,7 +16,9 @@ final class LocalIssuerInitializer implements ApplicationContextInitializer<Conf
     @Override
     public void initialize(ConfigurableApplicationContext context) {
         ISSUER.start();
-        TestPropertyValues.of("spring.security.oauth2.resourceserver.jwt.issuer-uri=" + ISSUER.issuerUri())
+        TestPropertyValues.of(
+                        "spring.security.oauth2.resourceserver.jwt.issuer-uri=" + ISSUER.issuerUri(),
+                        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + ISSUER.issuerUri() + "/jwks")
                 .applyTo(context);
         context.getBeanFactory().registerSingleton("localIssuer", ISSUER);
     }

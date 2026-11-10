@@ -1,6 +1,8 @@
 package com.ebravo.wallet.adapter.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.http.HttpHeaders.RETRY_AFTER;
 import static org.springframework.http.HttpHeaders.WWW_AUTHENTICATE;
 
 import org.junit.jupiter.api.Test;
@@ -8,8 +10,11 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.BearerTokenErrors;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -49,5 +54,54 @@ class BearerTokenProblemsTest {
         assertThat(response.getContentAsString()).isEqualTo("""
                 {"title":"Bad Request","status":400,\
                 "detail":"A valid bearer token is required","instance":"/wallets/me"}""");
+    }
+
+    /**
+     * The token could not be checked at all, typically because the issuer's keys cannot be read: a
+     * failure of a dependency, not of the token, so no challenge, and a retry may succeed.
+     */
+    @Test
+    void answersATokenThatCannotBeCheckedWith503() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/wallets/me");
+        var response = new MockHttpServletResponse();
+
+        problems.onAuthenticationFailure(request, response, new AuthenticationServiceException(
+                "Couldn't retrieve remote JWK set", new JwtException("Couldn't retrieve remote JWK set")));
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(response.getHeader(RETRY_AFTER)).isEqualTo("1");
+        assertThat(response.getHeader(WWW_AUTHENTICATE)).isNull();
+        assertThat(response.getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        assertThat(response.getContentAsString()).isEqualTo("""
+                {"title":"Service Unavailable","status":503,\
+                "detail":"The token cannot be checked now, retry the request","instance":"/wallets/me"}""");
+    }
+
+    /**
+     * The bearer filter also catches what is thrown after the token was accepted, further down the
+     * chain. A service failure that is not the decoder's goes to the error page, as Spring's own
+     * handler sends it, instead of being blamed on the token.
+     */
+    @Test
+    void leavesAServiceFailureThatIsNotTheDecodersToTheErrorPage() {
+        var failure = new AuthenticationServiceException("Something else failed");
+
+        assertThatThrownBy(() -> problems.onAuthenticationFailure(
+                new MockHttpServletRequest("GET", "/wallets/me"), new MockHttpServletResponse(), failure))
+                .isSameAs(failure);
+    }
+
+    /** Guards the 503 above: only a token that could not be checked gets it, a bad one is still challenged. */
+    @Test
+    void stillChallengesABadTokenOnFailure() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/wallets/me");
+        var response = new MockHttpServletResponse();
+
+        problems.onAuthenticationFailure(request, response, new InvalidBearerTokenException("Jwt expired"));
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getHeader(WWW_AUTHENTICATE)).contains("error=\"invalid_token\"");
+        assertThat(response.getHeader(RETRY_AFTER)).isNull();
+        assertThat(response.getContentAsString()).contains("\"detail\":\"A valid bearer token is required\"");
     }
 }

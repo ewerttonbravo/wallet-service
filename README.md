@@ -105,7 +105,7 @@ Tokens for any audience other than `wallet-service`, or from any issuer other th
 
 ### Run from source
 
-To run the service from source while developing (JDK 25 required), stop the service container if it runs, start only PostgreSQL and the issuer, and give the service its database and issuer through environment variables; it refuses to start without them:
+To run the service from source while developing (JDK 25 required), stop the service container if it runs, start only PostgreSQL and the issuer, and give the service its database, its issuer and the issuer's key set through environment variables; it refuses to start without them:
 
 ```sh
 docker compose stop wallet-service
@@ -114,6 +114,7 @@ export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
 export SPRING_DATASOURCE_USERNAME=wallet
 export SPRING_DATASOURCE_PASSWORD=wallet
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000/local
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI=http://localhost:9000/local/jwks
 ./mvnw spring-boot:run
 ```
 
