@@ -32,8 +32,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Maps business errors, and a wallet too busy to lock, to Problem Details (RFC 9457), and counts
- * each as {@code wallet.refusals} by {@code reason}. A database out of reach is answered too, but
- * not counted: the service did not refuse the request.
+ * each as {@code wallet.refusals} by {@code reason}. A database that is unavailable is answered too,
+ * but not counted: the service did not refuse the request.
  */
 @RestControllerAdvice
 class WalletProblemHandler {
@@ -80,14 +80,14 @@ class WalletProblemHandler {
     }
 
     /**
-     * A read could not get a connection, or a posting could not start its transaction. A posting
-     * whose connection broke at commit may have been posted, so the safe retry is the same request
-     * with the same idempotency key, which replays it or posts it once.
+     * A read could not get or keep a connection, or a posting could not start its transaction:
+     * the database is down, or the pool is full. Neither tells them apart, the logged cause does.
+     * Retrying the same request is safe; a posting carries its idempotency key, so it posts once.
      */
     @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
     ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
         LOG.error("The database cannot be reached", exception);
-        return retryLater("The service cannot reach its database, retry the request");
+        return retryLater("The database is unavailable, retry the request");
     }
 
     private static ResponseEntity<ProblemDetail> retryLater(String detail) {

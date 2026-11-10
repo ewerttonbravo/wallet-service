@@ -20,7 +20,7 @@ info:
     Refusals HTTP itself defines, such as `405` for a method a path does not serve or `406` for an
     `Accept` the service cannot answer, are not listed per operation. Nor is `500`, a failure of the
     service itself, such as an issuer whose keys cannot be read, answered with a generic error body.
-    A database the service cannot reach is `503` with `Retry-After`, listed on every operation.
+    A database that is unavailable is `503` with `Retry-After`, listed on every operation.
 servers:
   - url: /
     description: The host that serves this contract.
@@ -367,7 +367,7 @@ paths:
     get:
       operationId: getReadiness
       summary: Readiness probe
-      description: Down while the service cannot reach its database, so traffic goes to instances that can.
+      description: Down while the service cannot get a database connection, so traffic goes to instances that can.
       security: []
       parameters:
         - $ref: "#/components/parameters/CorrelationId"
@@ -492,9 +492,9 @@ components:
             $ref: "#/components/schemas/Problem"
     Unavailable:
       description: |
-        A wallet stayed locked by other operations, and nothing was posted; or the service cannot
-        reach its database. Retry the same request: a posting with the same `Idempotency-Key` is
-        replayed if it was posted, and posted once if it was not.
+        A wallet stayed locked by other operations, and nothing was posted; or the database is
+        unavailable. Retry the same request, with the same `Idempotency-Key` for a posting: it is
+        posted once.
       headers:
         X-Correlation-Id:
           $ref: "#/components/headers/CorrelationId"
