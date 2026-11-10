@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -80,11 +81,15 @@ class WalletProblemHandler {
     }
 
     /**
-     * A read could not get or keep a connection, or a posting could not start its transaction:
-     * the database is down, or the pool is full. Neither tells them apart, the logged cause does.
-     * Retrying the same request is safe; a posting carries its idempotency key, so it posts once.
+     * A query could not get or keep a connection, or a posting could not start its transaction: the
+     * database is down, or the pool is full. Spring files a connection failure as a resource failure,
+     * lasting or transient; neither tells the cases apart, the logged cause does. Retrying the same
+     * request is safe; a posting carries its idempotency key, so it posts once.
      */
-    @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
+    @ExceptionHandler({
+            DataAccessResourceFailureException.class,
+            TransientDataAccessResourceException.class,
+            CannotCreateTransactionException.class})
     ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
         LOG.error("The database cannot be reached", exception);
         return retryLater("The database is unavailable, retry the request");
