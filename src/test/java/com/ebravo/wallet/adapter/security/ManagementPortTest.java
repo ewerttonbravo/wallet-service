@@ -19,6 +19,14 @@ class ManagementPortTest {
         assertThatCode(() -> SecurityConfiguration.requireManagementPortOfItsOwn(environment)).doesNotThrowAnyException();
     }
 
+    /** With no port at all, the actuator answers no one over HTTP: nothing to keep from the API's clients. */
+    @Test
+    void acceptsTheActuatorTurnedOff() {
+        var environment = new MockEnvironment().withProperty("management.server.port", "-1");
+
+        assertThatCode(() -> SecurityConfiguration.requireManagementPortOfItsOwn(environment)).doesNotThrowAnyException();
+    }
+
     @Test
     void refusesTheActuatorOnTheApiPort() {
         var environment = new MockEnvironment()
