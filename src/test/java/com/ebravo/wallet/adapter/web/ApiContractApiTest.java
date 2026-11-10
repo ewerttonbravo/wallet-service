@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
@@ -40,6 +41,15 @@ class ApiContractApiTest {
         assertThat(served.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .startsWith("openapi: 3.1.0")
                 .isEqualTo(contract());
+    }
+
+    /** The contract is one small document: a range of it is no use, and would be a status to document. */
+    @Test
+    void servesTheWholeContractToARangeRequest() throws Exception {
+        var served = mvc.get().uri("/openapi.yaml").header(HttpHeaders.RANGE, "bytes=0-9").exchange();
+
+        assertThat(served).hasStatusOk();
+        assertThat(served.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(contract());
     }
 
     @Test
