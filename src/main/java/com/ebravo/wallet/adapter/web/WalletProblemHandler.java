@@ -22,18 +22,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.transaction.TransactionTimedOutException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Maps business errors, and a wallet too busy to lock, to Problem Details (RFC 9457), and counts
- * each as {@code wallet.refusals} by {@code reason}. A database that is unavailable is answered too,
- * but not counted: the service did not refuse the request.
+ * each as {@code wallet.refusals} by {@code reason}. A database that is unavailable, and a use case
+ * past its time budget, are answered too, but not counted: the service did not refuse the request.
  */
 @RestControllerAdvice
 class WalletProblemHandler {
@@ -89,6 +91,17 @@ class WalletProblemHandler {
     ResponseEntity<ProblemDetail> handleDatabaseUnavailable(RuntimeException exception) {
         LOG.error("The database is unavailable", exception);
         return retryLater("The database is unavailable, retry the request");
+    }
+
+    /**
+     * A use case ran out of its time budget: a statement was cancelled when it ran out, or was refused
+     * for starting after it. The transaction was rolled back and nothing was posted, so retrying is
+     * safe. Like an unavailable database, it is not a refusal; the logged cause tells what it waited on.
+     */
+    @ExceptionHandler({QueryTimeoutException.class, TransactionTimedOutException.class})
+    ResponseEntity<ProblemDetail> handleTookTooLong(RuntimeException exception) {
+        LOG.error("The request took too long", exception);
+        return retryLater("The request took too long, retry the request");
     }
 
     private static ResponseEntity<ProblemDetail> retryLater(String detail) {
