@@ -89,6 +89,12 @@ AT=$(curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/wallets/me
 curl -G -H "Authorization: Bearer $TOKEN" --data-urlencode "at=$AT" http://localhost:8080/wallets/me/balance
 ```
 
+The service logs one JSON object per line, in Elastic Common Schema, with a line for every request: method, path, status, duration in nanoseconds and correlation id. Follow one request with the id it was sent or answered with:
+
+```sh
+docker compose logs --no-log-prefix wallet-service | grep '^{' | jq 'select(.correlationId == "my-request-1")'
+```
+
 Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`, and the URLs that name it: for 8080, `api` in `bruno/environments/local.bru` and the examples above; for 9000, `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml`, `issuer` and `untrustedIssuer` in `bruno/environments/local.bru`, and the examples above. Stop everything with `docker compose down -v`.
 
 ### Run from source
