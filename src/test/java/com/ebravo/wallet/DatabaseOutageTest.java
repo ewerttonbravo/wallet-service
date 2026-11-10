@@ -84,7 +84,10 @@ class DatabaseOutageTest {
         assertThat(response).bodyText().doesNotContainIgnoringCase("hikari").doesNotContainIgnoringCase("jdbc");
     }
 
-    /** Answered, the failure no longer reaches the access line, so searching by id must still find why. */
+    /**
+     * Answered, the failure no longer reaches the access line, so searching by id must still find
+     * why: the pool's own failure, whatever Spring wraps it in.
+     */
     @Test
     void logsTheFailureWithTheCorrelationId(CapturedOutput output) {
         var response = mvc.get().uri("/wallets/me").with(jwt().jwt(token -> token.subject(anOwner().value()))).exchange();
@@ -92,7 +95,7 @@ class DatabaseOutageTest {
         var correlationId = response.getResponse().getHeader("X-Correlation-Id");
         assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
                 .anyMatch(line -> line.contains("\"level\":\"ERROR\"")
-                        && line.contains("\"type\":\"org.springframework.dao.DataAccessResourceFailureException\""));
+                        && line.contains("Caused by: java.sql.SQLTransientConnectionException"));
     }
 
     static Stream<Named<Function<MockMvcTester, MockMvcRequestBuilder>>> callsThatNeedTheDatabase() {
