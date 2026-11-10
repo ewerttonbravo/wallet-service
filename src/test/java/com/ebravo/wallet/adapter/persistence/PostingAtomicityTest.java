@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import com.ebravo.wallet.IntegrationTest;
+import com.ebravo.wallet.application.RecordingMetrics;
 import com.ebravo.wallet.application.IdempotencyKeys;
 import com.ebravo.wallet.application.Ledger;
 import com.ebravo.wallet.application.PageRequest;
@@ -58,7 +59,7 @@ class PostingAtomicityTest {
     // The same wiring with a ledger that does not fail posts both writes, so the setup itself writes.
     @Test
     void aPostingCommitsTheBalanceAndTheLedgerTogether() {
-        var service = new WalletService(wallets, ledger, keys, transactions, clock);
+        var service = new WalletService(wallets, ledger, keys, transactions, new RecordingMetrics(), clock);
         var owner = anOwner();
         service.open(owner);
 
@@ -70,7 +71,7 @@ class PostingAtomicityTest {
 
     @Test
     void aLedgerFailureAfterTheWritesRollsTheBalanceBack() {
-        var service = new WalletService(wallets, new FailingAfterAppend(ledger), keys, transactions, clock);
+        var service = new WalletService(wallets, new FailingAfterAppend(ledger), keys, transactions, new RecordingMetrics(), clock);
         var owner = anOwner();
         service.open(owner);
 
@@ -84,12 +85,12 @@ class PostingAtomicityTest {
 
     @Test
     void aLedgerFailureAfterATransferRollsBothBalancesBack() {
-        var service = new WalletService(wallets, new FailingAfterAppend(ledger), keys, transactions, clock);
+        var service = new WalletService(wallets, new FailingAfterAppend(ledger), keys, transactions, new RecordingMetrics(), clock);
         var alice = anOwner();
         var bob = anOwner();
         service.open(alice);
         var recipient = service.open(bob);
-        new WalletService(wallets, ledger, keys, transactions, clock).deposit(alice, money("10.00"), CORRELATION, aKey());
+        new WalletService(wallets, ledger, keys, transactions, new RecordingMetrics(), clock).deposit(alice, money("10.00"), CORRELATION, aKey());
 
         assertThatIllegalStateException()
                 .isThrownBy(() -> service.transfer(alice, recipient.id(), money("4.00"), CORRELATION, aKey()))
