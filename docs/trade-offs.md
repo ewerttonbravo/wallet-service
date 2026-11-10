@@ -74,3 +74,4 @@ Each compromise has a kind: a **design choice** would stay the same with more ti
 | 9 | Historical balance: the balance at a past instant, read from the resulting balance of the wallet's last entry at or before it; instants before the wallet or in the future refused | 0.3 |
 | 10 | Service image: the service built from source and run in Docker Compose next to PostgreSQL and the issuer, one issuer identity for clients and the service; the API collection versioned and run against the stack in CI | 0.5 |
 | 11 | API contract: an OpenAPI 3.1 contract written by hand, served without a token, and checked against every API test's exchanges | 0.17 |
+| 12 | Refused tokens answered with Problem Details next to the bearer challenge; the error page no longer taken for a bad token when the issuer cannot be reached | 0.5 |
