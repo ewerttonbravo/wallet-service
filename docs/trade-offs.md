@@ -81,3 +81,4 @@ Each compromise has a kind: a **design choice** would stay the same with more ti
 | 10 | Service image: the service built from source and run in Docker Compose next to PostgreSQL and the issuer, one issuer identity for clients and the service; the API collection versioned and run against the stack in CI | 0.5 |
 | 11 | API contract: an OpenAPI 3.1 contract written by hand, served without a token, and checked against every API test's exchanges | 0.17 |
 | 12 | Refused tokens answered with Problem Details next to the bearer challenge; the error page no longer taken for a bad token when the issuer cannot be reached | 0.5 |
+| 13 | Structured logs in Elastic Common Schema: an access line per request with its correlation id, the id on every line of the request, failures carried on their access line | 0.45 |
