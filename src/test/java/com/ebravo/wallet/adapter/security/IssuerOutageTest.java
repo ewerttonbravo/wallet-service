@@ -10,8 +10,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 
@@ -23,13 +26,14 @@ import org.springframework.context.annotation.Import;
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=http://127.0.0.1:1/local",
         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://127.0.0.1:1/local/jwks"})
 @Import(TestcontainersConfiguration.class)
+@ExtendWith(OutputCaptureExtension.class)
 class IssuerOutageTest {
 
     @LocalServerPort
     private int port;
 
     @Test
-    void doesNotBlameTheTokenWhenTheIssuerCannotBeReached() throws Exception {
+    void doesNotBlameTheTokenWhenTheIssuerCannotBeReached(CapturedOutput output) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/wallets/me"))
                 .header("Authorization", "Bearer " + aSignedLookingToken())
                 .build();
@@ -38,6 +42,10 @@ class IssuerOutageTest {
 
         assertThat(response.statusCode()).isEqualTo(500);
         assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
+        // The access log sees the failure thrown through it, before the error page answers it.
+        var correlationId = response.headers().firstValue("X-Correlation-Id").orElseThrow();
+        assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
+                .anyMatch(line -> line.contains("\"message\":\"GET /wallets/me 500\""));
     }
 
     /** Well-formed, so the decoder reaches for the issuer's keys to check the signature. */
