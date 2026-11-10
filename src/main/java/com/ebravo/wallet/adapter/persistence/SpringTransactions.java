@@ -1,39 +1,48 @@
 package com.ebravo.wallet.adapter.persistence;
 
 import com.ebravo.wallet.application.Transactions;
+import java.sql.SQLException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
-import org.hibernate.TransactionException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionTimedOutException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Every use case runs within a time budget: each statement may take only the time its transaction
- * has left, and is cancelled when it runs out; the transaction then rolls back. The wallet lock's own
- * timeout covers that lock alone, while a use case can also wait on other locks (a migration's) or a
- * slow database, and a transfer waits for two wallet locks.
+ * Every posting and wallet opening runs within a time budget the database keeps: the transaction
+ * sets PostgreSQL's {@code transaction_timeout} first, and the server ends it once the budget runs
+ * out, whether a statement is running, waiting for a lock, or the service is between statements.
+ * The wallet lock's own timeout covers that lock alone, while a posting can also wait on other locks
+ * (a migration's) or a slow database, and a transfer waits for two wallet locks. A per-statement
+ * limit derived from the time left would not do: JDBC takes whole seconds, and Hibernate rounds the
+ * time left down to none at all below half a second.
  */
 @Component
 class SpringTransactions implements Transactions {
 
-    static final int BUDGET_SECONDS = 3;
+    static final Duration BUDGET = Duration.ofSeconds(3);
 
-    // Hibernate refuses its own statements past the deadline with this generic exception alone.
-    private static final String HIBERNATE_DEADLINE = "Transaction timeout expired";
+    // PostgreSQL's code for a transaction it ended at its transaction_timeout.
+    private static final String TRANSACTION_TIMEOUT = "25P04";
 
     private final TransactionTemplate template;
+    private final JdbcClient jdbc;
+    private final String setBudget;
 
     @Autowired
-    SpringTransactions(PlatformTransactionManager transactionManager) {
-        this(transactionManager, BUDGET_SECONDS);
+    SpringTransactions(PlatformTransactionManager transactionManager, JdbcClient jdbc) {
+        this(transactionManager, jdbc, BUDGET);
     }
 
-    SpringTransactions(PlatformTransactionManager transactionManager, int budgetSeconds) {
-        template = new TransactionTemplate(transactionManager);
-        template.setTimeout(budgetSeconds);
+    SpringTransactions(PlatformTransactionManager transactionManager, JdbcClient jdbc, Duration budget) {
+        this.template = new TransactionTemplate(transactionManager);
+        this.jdbc = jdbc;
+        // SET takes no parameters; the value is the service's own, never a client's.
+        this.setBudget = "set local transaction_timeout = " + budget.toMillis();
     }
 
     /**
@@ -48,6 +57,7 @@ class SpringTransactions implements Transactions {
         try {
             return template.execute(_ -> {
                 try {
+                    jdbc.sql(setBudget).update();
                     return work.get();
                 } catch (RuntimeException exception) {
                     failure.set(exception);
@@ -65,19 +75,14 @@ class SpringTransactions implements Transactions {
     }
 
     /**
-     * A statement started past the budget is refused before it runs, but only Spring's own statements
-     * say so with a {@link TransactionTimedOutException}: Spring Data wraps it in a query error when
-     * it derives the query, and Hibernate throws a generic exception of its own for its statements,
-     * such as the refresh after a wallet lock. Either would read as a failure of the service.
+     * The server ends a transaction past its budget together with its connection, and neither
+     * Hibernate nor Spring knows the code it sends: each reports a generic database error, which
+     * would answer as a failure of the service. The code, wherever it sits in the failure, tells it.
      */
     private static RuntimeException pastTheBudget(RuntimeException failure) {
-        if (failure instanceof TransactionTimedOutException) {
-            return failure;
-        }
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof TransactionTimedOutException
-                    || cause instanceof TransactionException && HIBERNATE_DEADLINE.equals(cause.getMessage())) {
-                return new TransactionTimedOutException(cause.getMessage(), failure);
+            if (cause instanceof SQLException sql && TRANSACTION_TIMEOUT.equals(sql.getSQLState())) {
+                return new TransactionTimedOutException("The transaction ran past its budget", failure);
             }
         }
         return failure;

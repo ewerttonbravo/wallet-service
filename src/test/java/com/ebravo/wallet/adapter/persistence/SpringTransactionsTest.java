@@ -30,7 +30,7 @@ import org.springframework.transaction.TransactionTimedOutException;
 
 /**
  * The budget on the real stack, Hibernate and Spring JDBC alike. A budget of one second, the
- * smallest there is, keeps the tests short; the service's own is {@link SpringTransactions#BUDGET_SECONDS}.
+ * smallest there is, keeps the tests short; the service's own is {@link SpringTransactions#BUDGET}.
  * One instance, so the statements can be sent through the beans it is given.
  */
 @IntegrationTest
@@ -163,7 +163,7 @@ class SpringTransactionsTest {
     }
 
     private SpringTransactions budgeted() {
-        return new SpringTransactions(transactionManager, BUDGET_SECONDS);
+        return new SpringTransactions(transactionManager, jdbc, Duration.ofSeconds(BUDGET_SECONDS));
     }
 
     private static void waitPastTheBudget() {

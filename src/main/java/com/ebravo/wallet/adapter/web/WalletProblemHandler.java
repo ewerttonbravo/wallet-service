@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Maps business errors, and a wallet too busy to lock, to Problem Details (RFC 9457), and counts
- * each as {@code wallet.refusals} by {@code reason}. A database that is unavailable, and a use case
+ * each as {@code wallet.refusals} by {@code reason}. A database that is unavailable, and a posting
  * past its time budget, are answered too, but not counted: the service did not refuse the request.
  */
 @RestControllerAdvice
@@ -94,9 +94,10 @@ class WalletProblemHandler {
     }
 
     /**
-     * A use case ran out of its time budget: a statement was cancelled when it ran out, or was refused
-     * for starting after it. The transaction was rolled back and nothing was posted, so retrying is
-     * safe. Like an unavailable database, it is not a refusal; the logged cause tells what it waited on.
+     * A posting or a wallet opening ran out of its time budget, and the database ended its
+     * transaction; or the database cancelled a statement, as an operator or a statement timeout of its
+     * own does. Nothing was posted, so retrying is safe. Like an unavailable database, it is not a
+     * refusal; the logged cause tells what it waited on.
      */
     @ExceptionHandler({QueryTimeoutException.class, TransactionTimedOutException.class})
     ResponseEntity<ProblemDetail> handleTookTooLong(RuntimeException exception) {
