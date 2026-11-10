@@ -76,10 +76,7 @@ class WalletProblemHandler {
     @ExceptionHandler
     ResponseEntity<ProblemDetail> handle(CannotAcquireLockException exception) {
         busy.increment();
-        var status = HttpStatus.SERVICE_UNAVAILABLE;
-        return ResponseEntity.status(status)
-                .header(HttpHeaders.RETRY_AFTER, "1")
-                .body(ProblemDetail.forStatusAndDetail(status, "The wallet is busy, retry the request"));
+        return retryLater("The wallet is busy, retry the request");
     }
 
     /**
@@ -90,10 +87,14 @@ class WalletProblemHandler {
     @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
     ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
         LOG.error("The database cannot be reached", exception);
+        return retryLater("The service cannot reach its database, retry the request");
+    }
+
+    private static ResponseEntity<ProblemDetail> retryLater(String detail) {
         var status = HttpStatus.SERVICE_UNAVAILABLE;
         return ResponseEntity.status(status)
                 .header(HttpHeaders.RETRY_AFTER, "1")
-                .body(ProblemDetail.forStatusAndDetail(status, "The service cannot reach its database, retry the request"));
+                .body(ProblemDetail.forStatusAndDetail(status, detail));
     }
 
     private static String reasonOf(Class<?> error) {
