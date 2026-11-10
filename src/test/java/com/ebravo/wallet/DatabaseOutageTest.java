@@ -110,7 +110,7 @@ class DatabaseOutageTest {
         @Bean
         @ServiceConnection
         PostgreSQLContainer database() {
-            return new PostgreSQLContainer("postgres:18.6-alpine3.24");
+            return new PostgreSQLContainer(TestcontainersConfiguration.POSTGRES_IMAGE);
         }
     }
 }
