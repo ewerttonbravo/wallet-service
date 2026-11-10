@@ -1,6 +1,7 @@
 package com.ebravo.wallet.adapter.security;
 
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
@@ -15,6 +16,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.context.support.WebApplicationContextUtils;
 import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
@@ -29,7 +31,7 @@ class SecurityConfiguration {
     SecurityFilterChain management(HttpSecurity http, Environment environment) {
         requireManagementPortOfItsOwn(environment);
         return http
-                .securityMatcher(EndpointRequest.toAnyEndpoint())
+                .securityMatcher(SecurityConfiguration::onTheManagementPort)
                 .authorizeHttpRequests(requests -> requests.anyRequest().permitAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(CsrfConfigurer::disable)
@@ -59,6 +61,15 @@ class SecurityConfiguration {
                 // Bearer tokens only, no cookies: there is no ambient credential for CSRF to abuse.
                 .csrf(CsrfConfigurer::disable)
                 .build();
+    }
+
+    /**
+     * Every request the management server receives, so a path it does not serve is not found there,
+     * instead of falling through to the API's chain and its token check.
+     */
+    private static boolean onTheManagementPort(HttpServletRequest request) {
+        var context = WebApplicationContextUtils.getRequiredWebApplicationContext(request.getServletContext());
+        return WebServerNamespace.MANAGEMENT.equals(WebServerNamespace.from(context));
     }
 
     /** On the API's port, the actuator would answer anyone without a token. */
