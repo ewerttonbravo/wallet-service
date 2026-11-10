@@ -81,7 +81,7 @@ class WalletProblemHandlerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(503);
         assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("1");
-        assertThat(response.getBody().getDetail()).isEqualTo("The service cannot reach its database, retry the request");
+        assertThat(response.getBody().getDetail()).isEqualTo("The database is unavailable, retry the request");
         assertThat(registry.find("wallet.refusals").counters()).allMatch(counter -> counter.count() == 0);
     }
 

@@ -80,7 +80,7 @@ class DatabaseOutageTest {
                 .hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
                 .hasHeader(HttpHeaders.RETRY_AFTER, "1")
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-                .bodyJson().extractingPath("$.detail").isEqualTo("The service cannot reach its database, retry the request");
+                .bodyJson().extractingPath("$.detail").isEqualTo("The database is unavailable, retry the request");
         assertThat(response).bodyText().doesNotContainIgnoringCase("hikari").doesNotContainIgnoringCase("jdbc");
     }
 
