@@ -13,8 +13,9 @@ class HealthEndpointTest {
     @Autowired
     private MockMvcTester mvc;
 
+    /** The probes stay on the application's port, where orchestrators reach the service. */
     @ParameterizedTest
-    @ValueSource(strings = {"/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"})
+    @ValueSource(strings = {"/livez", "/readyz"})
     void reportsUpWithoutAuthentication(String path) {
         assertThat(mvc.get().uri(path))
                 .hasStatusOk()

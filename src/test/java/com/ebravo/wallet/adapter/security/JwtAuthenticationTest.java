@@ -65,7 +65,7 @@ class JwtAuthenticationTest {
 
     /** Public paths need no token, but a token sent there is still validated, and a bad one refused. */
     @ParameterizedTest
-    @ValueSource(strings = {"/openapi.yaml", "/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"})
+    @ValueSource(strings = {"/openapi.yaml", "/livez", "/readyz"})
     void rejectsAnInvalidTokenOnPublicPathsToo(String path) {
         var forged = withSubject(issuer.tokenFor(anOwner(), AUDIENCE), anOwner());
 
