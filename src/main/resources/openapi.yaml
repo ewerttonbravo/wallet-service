@@ -18,8 +18,9 @@ info:
     UUID. A malformed `X-Correlation-Id` is refused with `400` on every path.
 
     Refusals HTTP itself defines, such as `405` for a method a path does not serve or `406` for an
-    `Accept` the service cannot answer, are not listed per operation. Nor is `500`, which a database
-    outage answers today with a generic error body.
+    `Accept` the service cannot answer, are not listed per operation. Nor is `500`, a failure of the
+    service itself, such as an issuer whose keys cannot be read, answered with a generic error body.
+    A database that is unavailable is `503` with `Retry-After`, listed on every operation.
 servers:
   - url: /
     description: The host that serves this contract.
@@ -62,6 +63,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   /wallets/me:
     get:
       operationId: getWallet
@@ -84,6 +87,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NoWallet"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   /wallets/me/balance:
     get:
       operationId: getBalance
@@ -127,6 +132,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   /wallets/me/deposits:
     post:
       operationId: deposit
@@ -163,7 +170,7 @@ paths:
         "415":
           $ref: "#/components/responses/NotJson"
         "503":
-          $ref: "#/components/responses/Busy"
+          $ref: "#/components/responses/Unavailable"
   /wallets/me/withdrawals:
     post:
       operationId: withdraw
@@ -200,7 +207,7 @@ paths:
         "415":
           $ref: "#/components/responses/NotJson"
         "503":
-          $ref: "#/components/responses/Busy"
+          $ref: "#/components/responses/Unavailable"
   /wallets/me/transfers:
     post:
       operationId: transfer
@@ -239,7 +246,7 @@ paths:
         "415":
           $ref: "#/components/responses/NotJson"
         "503":
-          $ref: "#/components/responses/Busy"
+          $ref: "#/components/responses/Unavailable"
   /wallets/me/transactions:
     get:
       operationId: listTransactions
@@ -279,6 +286,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NoWallet"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   /wallets/me/transactions/{id}:
     get:
       operationId: getTransaction
@@ -315,6 +324,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   /openapi.yaml:
     get:
       operationId: getContract
@@ -356,6 +367,7 @@ paths:
     get:
       operationId: getReadiness
       summary: Readiness probe
+      description: Down while the service cannot get a database connection, so traffic goes to instances that can.
       security: []
       parameters:
         - $ref: "#/components/parameters/CorrelationId"
@@ -478,8 +490,11 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-    Busy:
-      description: A wallet stayed locked by other operations. Nothing was posted, so a retry is safe.
+    Unavailable:
+      description: |
+        A wallet stayed locked by other operations, and nothing was posted; or the database is
+        unavailable. Retry the same request: a posting with the same `Idempotency-Key` is posted
+        once, and opening a wallet that was opened meanwhile answers `409`.
       headers:
         X-Correlation-Id:
           $ref: "#/components/headers/CorrelationId"

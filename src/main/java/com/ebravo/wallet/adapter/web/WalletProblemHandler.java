@@ -18,21 +18,27 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Maps business errors, and a wallet too busy to lock, to Problem Details (RFC 9457), and counts
- * each as {@code wallet.refusals} by {@code reason}.
+ * each as {@code wallet.refusals} by {@code reason}. A database that is unavailable is answered too,
+ * but not counted: the service did not refuse the request.
  */
 @RestControllerAdvice
 class WalletProblemHandler {
 
+    private static final Logger LOG = LoggerFactory.getLogger(WalletProblemHandler.class);
     private static final String REFUSALS = "wallet.refusals";
 
     private final Map<Class<?>, Counter> refusals;
@@ -70,10 +76,26 @@ class WalletProblemHandler {
     @ExceptionHandler
     ResponseEntity<ProblemDetail> handle(CannotAcquireLockException exception) {
         busy.increment();
+        return retryLater("The wallet is busy, retry the request");
+    }
+
+    /**
+     * A query could not get or keep a connection, or a use case could not start its transaction: the
+     * database is down, or the pool is full. Neither tells the cases apart, the logged cause does.
+     * Retrying is safe: a posting carries its idempotency key, so it posts once, and a wallet opened
+     * meanwhile answers 409.
+     */
+    @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
+    ResponseEntity<ProblemDetail> handleDatabaseUnavailable(RuntimeException exception) {
+        LOG.error("The database is unavailable", exception);
+        return retryLater("The database is unavailable, retry the request");
+    }
+
+    private static ResponseEntity<ProblemDetail> retryLater(String detail) {
         var status = HttpStatus.SERVICE_UNAVAILABLE;
         return ResponseEntity.status(status)
                 .header(HttpHeaders.RETRY_AFTER, "1")
-                .body(ProblemDetail.forStatusAndDetail(status, "The wallet is busy, retry the request"));
+                .body(ProblemDetail.forStatusAndDetail(status, detail));
     }
 
     private static String reasonOf(Class<?> error) {
