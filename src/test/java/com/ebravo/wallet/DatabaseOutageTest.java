@@ -86,7 +86,7 @@ class DatabaseOutageTest {
 
     /**
      * Answered, the failure no longer reaches the access line, so searching by id must still find
-     * why: the pool's own failure, whatever Spring wraps it in.
+     * why: the lost connection, whether the pool timed out getting one or handed out one already dead.
      */
     @Test
     void logsTheFailureWithTheCorrelationId(CapturedOutput output) {
@@ -96,7 +96,7 @@ class DatabaseOutageTest {
         assertThat(correlationId).isNotNull();
         assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
                 .anyMatch(line -> line.contains("\"level\":\"ERROR\"")
-                        && line.contains("Caused by: java.sql.SQLTransientConnectionException"));
+                        && line.contains("Caused by: org.hibernate.exception.JDBCConnectionException"));
     }
 
     static Stream<Named<Function<MockMvcTester, MockMvcRequestBuilder>>> callsThatNeedTheDatabase() {
