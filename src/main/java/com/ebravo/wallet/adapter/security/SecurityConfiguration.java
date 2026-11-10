@@ -63,10 +63,10 @@ class SecurityConfiguration {
 
     /** On the API's port, the actuator would answer anyone without a token. */
     static void requireManagementPortOfItsOwn(Environment environment) {
-        if (ManagementPortType.get(environment) != ManagementPortType.DIFFERENT) {
+        if (ManagementPortType.get(environment) == ManagementPortType.SAME) {
             throw new IllegalStateException(
                     "The actuator answers without a token: management.server.port must be a port of its own, "
-                            + "reached by the platform alone, not the API's");
+                            + "reached by the platform alone, not the API's, or -1 to turn it off");
         }
     }
 }
