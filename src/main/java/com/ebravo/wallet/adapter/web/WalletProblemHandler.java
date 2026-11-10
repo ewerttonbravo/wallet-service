@@ -76,7 +76,6 @@ class WalletProblemHandler {
                 .body(ProblemDetail.forStatusAndDetail(status, "The wallet is busy, retry the request"));
     }
 
-    /** {@code InsufficientFundsException} is {@code insufficient-funds}. */
     private static String reasonOf(Class<?> error) {
         return error.getSimpleName().replaceFirst("Exception$", "")
                 .replaceAll("([a-z])([A-Z])", "$1-$2")
@@ -85,7 +84,7 @@ class WalletProblemHandler {
 
     private static Counter refusal(MeterRegistry registry, String reason) {
         return Counter.builder(REFUSALS)
-                .description("Requests refused by a business rule, or by a wallet too busy to lock")
+                .description("Requests answered with a business error, missing resources included, or a wallet too busy to lock")
                 .tag("reason", reason)
                 .register(registry);
     }
