@@ -52,6 +52,12 @@ class ManagementServerTest {
         assertThat(scrape.statusCode()).isEqualTo(200);
         assertThat(scrape.headers().firstValue("Content-Type")).hasValueSatisfying(type -> assertThat(type).startsWith("text/plain"));
         assertThat(scrape.body()).contains("jvm_memory_used_bytes", "http_server_requests_seconds");
+        // The service's own series, there from the start.
+        assertThat(scrape.body()).contains(
+                "wallet_postings_total{outcome=\"posted\",type=\"deposit\"}",
+                "wallet_postings_total{outcome=\"replayed\",type=\"transfer\"}",
+                "wallet_refusals_total{reason=\"insufficient-funds\"}",
+                "wallet_refusals_total{reason=\"wallet-busy\"}");
     }
 
     @Test
