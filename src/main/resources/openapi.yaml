@@ -2,6 +2,9 @@ openapi: 3.1.0
 info:
   title: Wallet Service
   version: 0.0.1
+  license:
+    name: MIT
+    identifier: MIT
   description: |
     Wallets, deposits, withdrawals and transfers on a double-entry, append-only ledger.
 
