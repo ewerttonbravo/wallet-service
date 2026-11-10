@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,7 +43,8 @@ class SecurityConfiguration {
 
     @Bean
     @Order(2)
-    SecurityFilterChain api(HttpSecurity http, JsonMapper json) {
+    SecurityFilterChain api(HttpSecurity http, JsonMapper json, OAuth2ResourceServerProperties resourceServer) {
+        IssuerKeys.requireIssuerAndKeySet(resourceServer.getJwt());
         var problems = new BearerTokenProblems(json);
         return http
                 .authorizeHttpRequests(requests -> requests
