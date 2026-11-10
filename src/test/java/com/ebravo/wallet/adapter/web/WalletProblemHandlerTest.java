@@ -21,6 +21,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 /** Pins the status of every business error; API tests show them end to end. */
 class WalletProblemHandlerTest {
@@ -65,6 +68,27 @@ class WalletProblemHandlerTest {
         handler.handle(new CannotAcquireLockException("lock timeout"));
 
         assertThat(refusals("wallet-busy")).isEqualTo(1);
+    }
+
+    /**
+     * Whether a read could not get a connection or a posting could not start its transaction, the
+     * database is out of reach. Not a refusal: {@code registersEveryReasonAtZero} counts none for it.
+     */
+    @ParameterizedTest
+    @MethodSource("databaseFailures")
+    void mapsADatabaseThatCannotBeReachedToServiceUnavailable(RuntimeException failure) {
+        var response = handler.handleDatabaseUnreachable(failure);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("1");
+        assertThat(response.getBody().getDetail()).isEqualTo("The service cannot reach its database, retry the request");
+        assertThat(registry.find("wallet.refusals").counters()).allMatch(counter -> counter.count() == 0);
+    }
+
+    static Stream<RuntimeException> databaseFailures() {
+        return Stream.of(
+                new DataAccessResourceFailureException("Unable to acquire JDBC Connection"),
+                new CannotCreateTransactionException("Could not open JPA EntityManager for transaction"));
     }
 
     /** Every reason exists from the start, at zero, so a rate over it exists before the first refusal. */
