@@ -117,6 +117,8 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=http://localhost:9000
 ./mvnw spring-boot:run
 ```
 
+Run from source, the service listens on 8080 for the API and 8081 for the actuator (`curl localhost:8081/actuator/prometheus`). If 8081 is taken, set `MANAGEMENT_SERVER_PORT` to another port; the service refuses to start when it is the API's port, since the actuator answers without a token.
+
 ### API contract
 
 The service serves its OpenAPI 3.1 contract without a token. The same file is [`src/main/resources/openapi.yaml`](src/main/resources/openapi.yaml), and every API test checks its exchanges against it:
