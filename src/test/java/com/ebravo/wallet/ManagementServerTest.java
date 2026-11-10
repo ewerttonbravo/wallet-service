@@ -60,6 +60,13 @@ class ManagementServerTest {
                 "wallet_refusals_total{reason=\"wallet-busy\"}");
     }
 
+    /** Some scrapers send a token of their own, such as a service account's; it is no reason to refuse them. */
+    @Test
+    void ignoresATokenSentToTheManagementPort() throws Exception {
+        assertThat(get(managementPort, "/actuator/prometheus", "not-a-token-of-this-service").statusCode()).isEqualTo(200);
+        assertThat(get(managementPort, "/actuator/health", "not-a-token-of-this-service").statusCode()).isEqualTo(200);
+    }
+
     @Test
     void servesHealthWithoutATokenOnTheManagementPort() throws Exception {
         var health = get(managementPort, "/actuator/health", null);
