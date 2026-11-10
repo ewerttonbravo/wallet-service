@@ -103,6 +103,21 @@ class GracefulShutdownTest {
         assertThat(balanceInTheDatabase()).isEqualByComparingTo("10.00");
     }
 
+    /** A client that still routes to the instance gets a refusal at once, and turns to another instance. */
+    @Test
+    void refusesNewConnectionsWhileDraining() throws Exception {
+        try (var accepted = new Socket("localhost", port)) {
+            assertThat(accepted.isConnected()).as("the port accepts connections before the shutdown").isTrue();
+        }
+        CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
+        hold.awaitArrival();
+
+        var shutdown = beginShutdown();
+
+        awaitConnectionsRefused();
+        assertThat(shutdown).as("refused while draining, not once stopped").isNotDone();
+    }
+
     private CompletableFuture<Void> beginShutdown() {
         return CompletableFuture.runAsync(service::close);
     }
