@@ -31,7 +31,7 @@ class SpringTransactions implements Transactions {
 
     private final TransactionTemplate template;
     private final JdbcClient jdbc;
-    private final String setBudget;
+    private final String budgetStatement;
 
     @Autowired
     SpringTransactions(PlatformTransactionManager transactionManager, JdbcClient jdbc) {
@@ -42,7 +42,7 @@ class SpringTransactions implements Transactions {
         this.template = new TransactionTemplate(transactionManager);
         this.jdbc = jdbc;
         // SET takes no parameters; the value is the service's own, never a client's.
-        this.setBudget = "set local transaction_timeout = " + budget.toMillis();
+        this.budgetStatement = "set local transaction_timeout = " + budget.toMillis();
     }
 
     /**
@@ -57,7 +57,7 @@ class SpringTransactions implements Transactions {
         try {
             return template.execute(_ -> {
                 try {
-                    jdbc.sql(setBudget).update();
+                    jdbc.sql(budgetStatement).update();
                     return work.get();
                 } catch (RuntimeException exception) {
                     failure.set(exception);
