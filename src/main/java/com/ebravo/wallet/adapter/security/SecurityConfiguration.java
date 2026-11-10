@@ -1,6 +1,9 @@
 package com.ebravo.wallet.adapter.security;
 
 import jakarta.servlet.DispatcherType;
+import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
+import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,7 +22,11 @@ class SecurityConfiguration {
         var problems = new BearerTokenProblems(json);
         return http
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // The probes on the application's port, /livez and /readyz.
+                        .requestMatchers(EndpointRequest.toAdditionalPaths(WebServerNamespace.SERVER, HealthEndpoint.class))
+                        .permitAll()
+                        // The management port, which only the platform reaches: health and metrics.
+                        .requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()
                         // The contract grants nothing by itself, and clients read it before holding a token.
                         .requestMatchers(HttpMethod.GET, "/openapi.yaml").permitAll()
                         // The error page renders a failure already decided, such as an issuer that cannot be

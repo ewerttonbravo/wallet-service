@@ -25,8 +25,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @IntegrationTest
 class ApiContractApiTest {
 
-    // Actuator endpoints are documented too, but they are not this service's controllers.
-    private static final String ACTUATOR = "/actuator/";
+    // The probes are documented too, but they are served by the actuator, not this service's controllers.
+    private static final Set<String> PROBES = Set.of("/livez", "/readyz");
     private static final String CONTRACT = read();
     private static final SwaggerParseResult PARSED = new OpenAPIV3Parser().readContents(CONTRACT);
 
@@ -104,7 +104,7 @@ class ApiContractApiTest {
 
     private static Set<String> documentedOperations() {
         return PARSED.getOpenAPI().getPaths().entrySet().stream()
-                .filter(path -> !path.getKey().startsWith(ACTUATOR))
+                .filter(path -> !PROBES.contains(path.getKey()))
                 .flatMap(path -> path.getValue().readOperationsMap().keySet().stream()
                         .map(PathItem.HttpMethod::name)
                         .map(method -> method + " " + path.getKey()))
