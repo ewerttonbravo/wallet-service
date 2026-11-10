@@ -4,22 +4,30 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Answers a refused token, or a token refused access, with the bearer challenge (RFC 6750) and a
  * Problem Details body, as every other error is answered. The body is the same whatever was wrong:
- * the reason stays in the header.
+ * the reason stays in the header. A token that could not be checked at all, because the issuer's
+ * keys cannot be read, is not refused: it is answered {@code 503}, as an unavailable database is.
  */
-final class BearerTokenProblems implements AuthenticationEntryPoint, AccessDeniedHandler {
+final class BearerTokenProblems implements AuthenticationEntryPoint, AccessDeniedHandler, AuthenticationFailureHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(BearerTokenProblems.class);
 
     private final AuthenticationEntryPoint challenge = new BearerTokenAuthenticationEntryPoint();
     private final AccessDeniedHandler denial = new BearerTokenAccessDeniedHandler();
@@ -41,6 +49,24 @@ final class BearerTokenProblems implements AuthenticationEntryPoint, AccessDenie
             throws IOException, ServletException {
         denial.handle(request, response, refusal);
         write(request, response, "The token does not grant access to this resource");
+    }
+
+    /**
+     * Spring raises {@link AuthenticationServiceException} when the decoder fails for another reason
+     * than the token, such as keys that cannot be read; its default handler rethrows it to the error
+     * page, which answers 500. Any other failure is the token's, and is challenged.
+     */
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
+            AuthenticationException failure) throws IOException, ServletException {
+        if (failure instanceof AuthenticationServiceException) {
+            LOG.error("The token could not be checked", failure);
+            response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+            response.setHeader(HttpHeaders.RETRY_AFTER, "1");
+            write(request, response, "The token cannot be checked now, retry the request");
+        } else {
+            commence(request, response, failure);
+        }
     }
 
     /** The status is the one the bearer handler chose, which is not always 401 or 403. */

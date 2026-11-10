@@ -12,9 +12,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 import tools.jackson.databind.json.JsonMapper;
@@ -56,7 +58,15 @@ class SecurityConfiguration {
                 .oauth2ResourceServer(server -> server
                         .jwt(Customizer.withDefaults())
                         .authenticationEntryPoint(problems)
-                        .accessDeniedHandler(problems))
+                        .accessDeniedHandler(problems)
+                        // The configurer offers no setter for it: a token that cannot be checked is 503.
+                        .withObjectPostProcessor(new ObjectPostProcessor<BearerTokenAuthenticationFilter>() {
+                            @Override
+                            public <O extends BearerTokenAuthenticationFilter> O postProcess(O filter) {
+                                filter.setAuthenticationFailureHandler(problems);
+                                return filter;
+                            }
+                        }))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Bearer tokens only, no cookies: there is no ambient credential for CSRF to abuse.
                 .csrf(CsrfConfigurer::disable)
