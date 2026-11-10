@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer, and serves its OpenAPI contract. Operability comes next, in the order of the [roadmap](docs/roadmap.md).
+Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer, and serves its OpenAPI contract. It writes structured logs and metrics, answers `503` when its database or token issuer is unavailable, and drains the requests in flight when it stops. A final review of the code and documentation comes next, as the [roadmap](docs/roadmap.md) plans.
 
 ## Build and test
 
