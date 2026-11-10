@@ -52,6 +52,17 @@ class ApiContractTest {
                 .hasMessageContaining("Response status 409 not defined");
     }
 
+    /** A code HttpStatus has no constant for must still get the contract's verdict, not a crash. */
+    @Test
+    void rejectsAStatusCodeWithNoStandardName() {
+        var unnamed = response(HttpStatus.OK, MediaType.APPLICATION_JSON, WALLET);
+        unnamed.setStatus(299);
+
+        assertThatThrownBy(() -> CONTRACT.verify(get("/wallets/me"), unnamed))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Response status 299 not defined");
+    }
+
     @Test
     void acceptsASuccessToARequestTheContractDescribes() {
         var request = deposit();
