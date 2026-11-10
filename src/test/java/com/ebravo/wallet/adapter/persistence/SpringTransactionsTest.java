@@ -10,6 +10,7 @@ import com.ebravo.wallet.IntegrationTest;
 import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.domain.Wallet;
 import jakarta.persistence.EntityManager;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +24,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.QueryTimeoutException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionTimedOutException;
@@ -61,27 +61,63 @@ class SpringTransactionsTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void cutsALockWaitShortAtTheBudget() throws SQLException {
-        var wallet = Wallet.open(anOwner(), NOW);
-        assertThat(wallets.add(wallet)).isTrue();
+        var wallet = openedWallet();
 
         try (var holder = dataSource.getConnection()) {
             holder.setAutoCommit(false);
-            try (var statement = holder.prepareStatement("select id from wallet where id = ? for update")) {
-                statement.setObject(1, wallet.id().value());
-                assertThat(statement.executeQuery().next()).isTrue();
-            }
+            lock(wallet, holder);
 
             var start = System.nanoTime();
-            assertThatExceptionOfType(QueryTimeoutException.class)
+            assertThatExceptionOfType(TransactionTimedOutException.class)
                     .isThrownBy(() -> budgeted().inTransaction(() -> wallets.lockById(wallet.id())));
-            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1900));
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1500));
             holder.rollback();
         }
     }
 
     /**
+     * A statement started with little of the budget left still ends when the budget does: a limit
+     * rounded to whole seconds would give it none at all, or one second more.
+     */
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void cutsAStatementStartedNearTheEndOfTheBudget() throws SQLException {
+        var wallet = openedWallet();
+
+        try (var holder = dataSource.getConnection()) {
+            holder.setAutoCommit(false);
+            lock(wallet, holder);
+
+            var start = System.nanoTime();
+            assertThatExceptionOfType(TransactionTimedOutException.class)
+                    .isThrownBy(() -> budgeted().inTransaction(() -> {
+                        waitFor(Duration.ofMillis(600));
+                        return wallets.lockById(wallet.id());
+                    }));
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1500));
+            holder.rollback();
+        }
+    }
+
+    /**
+     * A transaction past its budget may lose its connection; the next ones, on the same thread that
+     * the pool hands its last connection back to first, still run.
+     */
+    @Test
+    void leavesThePoolUsableAfterATimeout() {
+        assertThatExceptionOfType(TransactionTimedOutException.class).isThrownBy(() -> budgeted().inTransaction(() -> {
+            waitPastTheBudget();
+            return jdbc.sql("select 1").query(Integer.class).single();
+        }));
+
+        for (var attempt = 0; attempt < 3; attempt++) {
+            assertThat(budgeted().inTransaction(() -> jdbc.sql("select 1").query(Integer.class).single())).isEqualTo(1);
+        }
+    }
+
+    /**
      * Time passing is the input here, so the work waits past the budget before its statement; the
-     * statement is then refused before it runs, whichever way it is sent, and always as a timeout.
+     * statement then fails, whichever way it is sent, and always as a timeout.
      */
     @ParameterizedTest(name = "{0}")
     @MethodSource("statements")
@@ -131,11 +167,22 @@ class SpringTransactionsTest {
     }
 
     private static void waitPastTheBudget() {
+        waitFor(Duration.ofSeconds(BUDGET_SECONDS).plusMillis(100));
+    }
+
+    private static void waitFor(Duration time) {
         try {
-            Thread.sleep(Duration.ofSeconds(BUDGET_SECONDS).plusMillis(100));
+            Thread.sleep(time);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
+        }
+    }
+
+    private static void lock(Wallet wallet, Connection holder) throws SQLException {
+        try (var statement = holder.prepareStatement("select id from wallet where id = ? for update")) {
+            statement.setObject(1, wallet.id().value());
+            assertThat(statement.executeQuery().next()).isTrue();
         }
     }
 }
