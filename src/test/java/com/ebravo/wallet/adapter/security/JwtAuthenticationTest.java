@@ -16,7 +16,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 @IntegrationTest
 class JwtAuthenticationTest {
@@ -35,6 +37,15 @@ class JwtAuthenticationTest {
         assertThat(mvc.post().uri("/wallets").header(AUTHORIZATION, bearer(alice))).hasStatus(HttpStatus.CREATED);
         assertThat(mvc.get().uri("/wallets/me").header(AUTHORIZATION, bearer(alice))).hasStatusOk();
         assertThat(mvc.get().uri("/wallets/me").header(AUTHORIZATION, bearer(bob))).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void describesAMissingTokenAsProblemDetails() {
+        var result = mvc.get().uri("/wallets/me").exchange();
+
+        assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(result.getResponse().getHeader(WWW_AUTHENTICATE)).startsWith("Bearer").doesNotContain("error=");
+        assertProblem(result, "/wallets/me");
     }
 
     @Test
@@ -64,6 +75,7 @@ class JwtAuthenticationTest {
 
         assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(result.getResponse().getHeader(WWW_AUTHENTICATE)).contains("error=\"invalid_token\"");
+        assertProblem(result, path);
     }
 
     // A fresh owner has no wallet: an accepted token answers 404, so 401 can only mean rejection.
@@ -72,6 +84,15 @@ class JwtAuthenticationTest {
 
         assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(result.getResponse().getHeader(WWW_AUTHENTICATE)).contains("error=\"invalid_token\"");
+        assertProblem(result, "/wallets/me");
+    }
+
+    /** The same body whatever was wrong with the token: the reason stays in the challenge header. */
+    private static void assertProblem(MvcTestResult result, String path) {
+        assertThat(result).hasContentType(MediaType.APPLICATION_PROBLEM_JSON).bodyJson().isStrictlyEqualTo("""
+                {"title": "Unauthorized", "status": 401, "detail": "A valid bearer token is required",
+                 "instance": "%s"}
+                """.formatted(path));
     }
 
     /** Swaps the subject and keeps the original signature, which no longer matches the payload. */

@@ -11,7 +11,8 @@ info:
     The wallet is always the caller's own, identified by the subject of a bearer JWT issued to the
     `wallet-service` audience. Amounts are decimal strings in BRL, never JSON numbers. Timestamps are
     ISO-8601 in UTC. A request that is not well-formed is refused with `400`; a well-formed request that
-    breaks a rule, with `422`. Errors other than `401` are Problem Details (RFC 9457).
+    breaks a rule, with `422`. Errors are Problem Details (RFC 9457); a refused token also carries
+    the bearer challenge in `WWW-Authenticate`, which names what was wrong with it.
 
     Every response carries `X-Correlation-Id`: the caller's, when it sent a valid one, or a generated
     UUID. A malformed `X-Correlation-Id` is refused with `400` on every path.
@@ -456,6 +457,10 @@ components:
           schema:
             type: string
             pattern: "^Bearer"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     RefusedToken:
       description: No token is needed here, but the one sent is not valid. Send none, or a valid one.
       headers:
@@ -467,6 +472,10 @@ components:
           schema:
             type: string
             pattern: "^Bearer"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     NotJson:
       description: The body is not sent as `application/json`. Nothing was posted.
       headers:
