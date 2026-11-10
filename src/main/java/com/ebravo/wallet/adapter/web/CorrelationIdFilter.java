@@ -18,10 +18,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Takes the caller's correlation id, or generates one, returns it on every response and puts it on
  * every line logged while the request runs. Runs before security so that rejected requests can be
- * traced too, and inside the access log, which reads it from the response.
+ * traced too, and inside the access log, which reads it from the request.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 1)
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)
 class CorrelationIdFilter extends OncePerRequestFilter {
 
     static final String HEADER = "X-Correlation-Id";

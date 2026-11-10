@@ -1,5 +1,6 @@
 package com.ebravo.wallet.adapter.web;
 
+import com.ebravo.wallet.domain.CorrelationId;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,11 +17,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Logs one line per request with Elastic Common Schema fields: method, path, status and duration,
- * and the correlation id the response carries. Outermost, so that every refusal is logged, a
+ * and the request's correlation id. Outermost, so that every refusal is logged, a
  * malformed correlation id included. Never the query string, the body or the token.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+// Apart from the framework's own filters at the first orders, so which one wraps the other is defined.
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
 class AccessLogFilter extends OncePerRequestFilter {
 
     private static final Logger LOG = LoggerFactory.getLogger(AccessLogFilter.class);
@@ -50,9 +52,8 @@ class AccessLogFilter extends OncePerRequestFilter {
         var path = request.getRequestURI();
         var line = LOG.atLevel(failure == null ? Level.INFO : Level.ERROR).setCause(failure);
         // Absent when the correlation id itself was refused: the rejected value is never written.
-        var correlationId = response.getHeader(CorrelationIdFilter.HEADER);
-        if (correlationId != null) {
-            line = line.addKeyValue(CorrelationIdFilter.LOG_KEY, correlationId);
+        if (request.getAttribute(CorrelationIdFilter.ATTRIBUTE) instanceof CorrelationId correlationId) {
+            line = line.addKeyValue(CorrelationIdFilter.LOG_KEY, correlationId.value());
         }
         line.addKeyValue("http.request.method", request.getMethod())
                 .addKeyValue("url.path", path)
