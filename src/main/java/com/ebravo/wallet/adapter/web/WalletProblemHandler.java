@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +38,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 class WalletProblemHandler {
 
+    private static final Logger LOG = LoggerFactory.getLogger(WalletProblemHandler.class);
     private static final String REFUSALS = "wallet.refusals";
 
     private final Map<Class<?>, Counter> refusals;
@@ -86,6 +89,7 @@ class WalletProblemHandler {
      */
     @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
     ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
+        LOG.error("The database cannot be reached", exception);
         var status = HttpStatus.SERVICE_UNAVAILABLE;
         return ResponseEntity.status(status)
                 .header(HttpHeaders.RETRY_AFTER, "1")
