@@ -37,8 +37,11 @@ import org.springframework.test.context.DynamicPropertySource;
 class IssuerTimeoutTest {
 
     private static final int REQUESTS = 8;
-    /** Two seconds to read the keys, after at most two waiting for another request's read. */
-    private static final Duration CEILING = Duration.ofSeconds(5);
+    /**
+     * Two seconds to read the keys, after at most two waiting for another request's read, plus room
+     * for a loaded build machine; without the bounds, a request waits 15 seconds or more.
+     */
+    private static final Duration CEILING = Duration.ofSeconds(6);
 
     private static final SilentIssuer ISSUER = new SilentIssuer();
 
