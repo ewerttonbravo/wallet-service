@@ -38,6 +38,16 @@ class IssuerKeysTest {
                 .withMessageContaining("issuer-uri");
     }
 
+    /** A relative or malformed key set fails at startup, naming the setting to fix. */
+    @Test
+    void refusesToStartWithAKeySetThatIsNotAUrl() {
+        var jwt = jwt("http://issuer/local", "/local/jwks");
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> IssuerKeys.readWithinBounds(jwt))
+                .withMessageContaining("jwk-set-uri");
+    }
+
     private static OAuth2ResourceServerProperties.Jwt jwt(String issuerUri, String jwkSetUri) {
         var jwt = new OAuth2ResourceServerProperties().getJwt();
         jwt.setIssuerUri(issuerUri);
