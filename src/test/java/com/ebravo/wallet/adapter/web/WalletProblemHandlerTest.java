@@ -71,7 +71,7 @@ class WalletProblemHandlerTest {
     @Test
     void registersEveryReasonAtZero() {
         assertThat(registry.find("wallet.refusals").counters())
-                .hasSize(errors().count() + 1)
+                .hasSize(Math.toIntExact(errors().count()) + 1)
                 .allMatch(counter -> counter.count() == 0);
     }
 
