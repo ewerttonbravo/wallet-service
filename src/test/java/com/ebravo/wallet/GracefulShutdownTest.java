@@ -118,6 +118,31 @@ class GracefulShutdownTest {
         assertThat(shutdown).as("refused while draining, not once stopped").isNotDone();
     }
 
+    /**
+     * A client that keeps connections open, as a gateway does, may send on one while the service
+     * drains. The server closes it without reading the request, so nothing is posted and the
+     * client may retry it elsewhere with the same idempotency key.
+     */
+    @Test
+    void postsNothingSentOnAnIdleConnectionWhileDraining() throws Exception {
+        try (var idle = new Socket("localhost", port)) {
+            var first = send(idle, request("GET", "/wallets/me", "", false)).orElseThrow();
+            assertThat(first.status()).isEqualTo(200);
+            assertThat(first.headers()).as("the connection is kept alive").doesNotContainEntry("connection", "close");
+            var held = CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
+            hold.awaitArrival();
+            var shutdown = beginShutdown();
+            awaitConnectionsRefused();
+
+            assertThat(send(idle, deposit("5.00", false))).as("closed unanswered").isEmpty();
+
+            hold.release();
+            assertThat(held.get()).hasValueSatisfying(response -> assertThat(response.status()).isEqualTo(201));
+            shutdown.get();
+        }
+        assertThat(balanceInTheDatabase()).isEqualByComparingTo("10.00");
+    }
+
     private CompletableFuture<Void> beginShutdown() {
         return CompletableFuture.runAsync(service::close);
     }
