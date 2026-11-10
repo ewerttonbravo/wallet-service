@@ -21,9 +21,10 @@ The service is built in increments, ordered from the most to the least value del
 | 13 | `sprint/13-structured-logs` | Structured logs carrying the correlation id | NFR5 partially |
 | 14 | `sprint/14-metrics` | Application metrics | NFR5 |
 | 15 | `sprint/15-database-readiness` | Database in the readiness group; `503` on connection failures | NFR4 partially |
-| 16 | `sprint/16-statement-timeout` | A statement timeout bounding the time of a whole transaction | NFR2, NFR4 partially |
-| 17 | `sprint/17-graceful-shutdown` | Graceful shutdown that drains in-flight requests | NFR4 |
-| 18 | `sprint/18-delivery` | Final review of code and documentation: assumptions, trade-offs, time spent | Delivery |
+| 16 | `sprint/16-issuer-outage` | `503` with `Retry-After` when the issuer's keys cannot be read | NFR4 partially, NFR7 |
+| 17 | `sprint/17-statement-timeout` | A statement timeout bounding the time of a whole transaction | NFR2, NFR4 partially |
+| 18 | `sprint/18-graceful-shutdown` | Graceful shutdown that drains in-flight requests | NFR4 |
+| 19 | `sprint/19-delivery` | Final review of code and documentation: assumptions, trade-offs, time spent | Delivery |
 
 ## Sizing rule
 
