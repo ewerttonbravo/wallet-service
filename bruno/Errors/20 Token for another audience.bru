@@ -16,11 +16,18 @@ auth:bearer {
 
 assert {
   res.status: eq 401
+  res.body.status: eq 401
+  res.body.title: eq "Unauthorized"
+  res.body.detail: eq "A valid bearer token is required"
 }
 
 tests {
   test("refuses the token itself, not a missing one", function () {
     expect(res.getHeader("www-authenticate")).to.contain('error="invalid_token"');
+  });
+
+  test("describes the refusal as Problem Details", function () {
+    expect(res.getHeader("content-type")).to.match(/^application\/problem\+json/);
   });
 }
 
