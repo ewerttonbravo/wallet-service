@@ -51,7 +51,7 @@ public final class WalletService {
 
     public Wallet open(OwnerId owner) {
         var wallet = Wallet.open(owner, now());
-        if (!wallets.add(wallet)) {
+        if (!transactions.inTransaction(() -> wallets.add(wallet))) {
             throw new WalletAlreadyExistsException();
         }
         return wallet;
