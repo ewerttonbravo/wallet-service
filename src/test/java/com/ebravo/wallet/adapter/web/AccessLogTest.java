@@ -57,7 +57,7 @@ class AccessLogTest {
 
     @Test
     void logsARefusedCorrelationIdWithoutIt(CapturedOutput output) {
-        var path = "/wallets/" + UUID.randomUUID();
+        var path = "/wallets/me/transactions/" + UUID.randomUUID();
 
         assertThat(mvc.get().uri(path).header("X-Correlation-Id", "has space")).hasStatus(HttpStatus.BAD_REQUEST);
 
