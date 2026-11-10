@@ -495,7 +495,8 @@ components:
             $ref: "#/components/schemas/Problem"
     Unavailable:
       description: |
-        A wallet stayed locked by other operations, and nothing was posted; the database is
+        A wallet stayed locked by other operations, and nothing was posted; a posting or a wallet
+        opening took longer than its three-second budget, and was rolled back; the database is
         unavailable; or the token cannot be checked, because the issuer's keys cannot be read. Retry
         the same request: a posting with the same `Idempotency-Key` is posted once, and opening a
         wallet that was opened meanwhile answers `409`.
