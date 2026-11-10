@@ -42,10 +42,13 @@ class IssuerOutageTest {
 
         assertThat(response.statusCode()).isEqualTo(500);
         assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
-        // The access log sees the failure thrown through it, before the error page answers it.
+        // The access log sees the failure thrown through it, before the error page answers it, and
+        // carries it: the container logs it again only after the request's context is gone.
         var correlationId = response.headers().firstValue("X-Correlation-Id").orElseThrow();
         assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
-                .anyMatch(line -> line.contains("\"message\":\"GET /wallets/me 500\""));
+                .anyMatch(line -> line.contains("\"message\":\"GET /wallets/me 500\"")
+                        && line.contains("\"level\":\"ERROR\"")
+                        && line.contains("\"type\":\"org.springframework.security.authentication.AuthenticationServiceException\""));
     }
 
     /** Well-formed, so the decoder reaches for the issuer's keys to check the signature. */

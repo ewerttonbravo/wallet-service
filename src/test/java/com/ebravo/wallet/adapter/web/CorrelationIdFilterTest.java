@@ -1,6 +1,7 @@
 package com.ebravo.wallet.adapter.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -29,13 +30,10 @@ class CorrelationIdFilterTest {
     void takesItOffWhenTheRequestFails() {
         var request = new MockHttpServletRequest("GET", "/wallets/me");
 
-        try {
-            filter.doFilter(request, new MockHttpServletResponse(), (_, _) -> {
-                throw new IllegalStateException("boom");
-            });
-        } catch (Exception expected) {
-            // The failure is the container's to answer; only the context left behind matters here.
-        }
+        // The failure is the container's to answer, so it goes on unchanged.
+        assertThatThrownBy(() -> filter.doFilter(request, new MockHttpServletResponse(), (_, _) -> {
+            throw new IllegalStateException("boom");
+        })).isInstanceOf(IllegalStateException.class).hasMessage("boom");
 
         assertThat(MDC.get("correlationId")).isNull();
     }
