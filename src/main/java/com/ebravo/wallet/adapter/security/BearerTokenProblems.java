@@ -33,18 +33,19 @@ final class BearerTokenProblems implements AuthenticationEntryPoint, AccessDenie
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException refusal)
             throws IOException, ServletException {
         challenge.commence(request, response, refusal);
-        write(request, response, HttpStatus.UNAUTHORIZED, "A valid bearer token is required");
+        write(request, response, "A valid bearer token is required");
     }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException refusal)
             throws IOException, ServletException {
         denial.handle(request, response, refusal);
-        write(request, response, HttpStatus.FORBIDDEN, "The token does not grant access to this resource");
+        write(request, response, "The token does not grant access to this resource");
     }
 
-    private void write(HttpServletRequest request, HttpServletResponse response, HttpStatus status, String detail)
-            throws IOException {
+    /** The status is the one the bearer handler chose, which is not always 401 or 403. */
+    private void write(HttpServletRequest request, HttpServletResponse response, String detail) throws IOException {
+        var status = HttpStatus.valueOf(response.getStatus());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         json.writeValue(response.getOutputStream(),
                 new Problem(status.getReasonPhrase(), status.value(), detail, request.getRequestURI()));
