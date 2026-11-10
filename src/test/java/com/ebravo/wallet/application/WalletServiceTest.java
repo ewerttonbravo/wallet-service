@@ -54,6 +54,13 @@ class WalletServiceTest {
             new WalletService(wallets, ledger, keys, transactions, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
 
     @Test
+    void opensAWalletInOneTransaction() {
+        service.open(anOwner());
+
+        assertThat(transactions.count).isEqualTo(1);
+    }
+
+    @Test
     void opensAWalletWithZeroBalanceForTheOwner() {
         var owner = anOwner();
 
@@ -247,11 +254,12 @@ class WalletServiceTest {
     void eachPostingRunsInOneTransaction() {
         var owner = anOwner();
         service.open(owner);
+        var before = transactions.count;
 
         service.deposit(owner, money("10.50"), CORRELATION, aKey());
         service.withdraw(owner, money("0.50"), CORRELATION, aKey());
 
-        assertThat(transactions.count).isEqualTo(2);
+        assertThat(transactions.count - before).isEqualTo(2);
     }
 
     // Valid postings open one transaction each (above); a hopeless one must not even take the lock.
@@ -259,12 +267,13 @@ class WalletServiceTest {
     void refusesANonPositiveAmountBeforeTouchingTheWallet() {
         var owner = anOwner();
         service.open(owner);
+        var before = transactions.count;
 
         assertThatExceptionOfType(InvalidAmountException.class)
                 .isThrownBy(() -> service.deposit(owner, Money.ZERO, CORRELATION, aKey()));
         assertThatExceptionOfType(InvalidAmountException.class)
                 .isThrownBy(() -> service.withdraw(owner, money("-0.01"), CORRELATION, aKey()));
-        assertThat(transactions.count).isZero();
+        assertThat(transactions.count - before).isZero();
     }
 
     // The same owner can deposit once the wallet exists (above), so only the missing wallet explains it.
@@ -416,10 +425,11 @@ class WalletServiceTest {
         service.open(alice);
         var recipient = service.open(anOwner());
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
+        var before = transactions.count;
 
         service.transfer(alice, recipient.id(), money("10.50"), CORRELATION, aKey());
 
-        assertThat(transactions.count).isEqualTo(2);
+        assertThat(transactions.count - before).isEqualTo(1);
     }
 
     @Test
@@ -501,10 +511,11 @@ class WalletServiceTest {
         var alice = anOwner();
         service.open(alice);
         var recipient = service.open(anOwner());
+        var before = transactions.count;
 
         assertThatExceptionOfType(InvalidAmountException.class)
                 .isThrownBy(() -> service.transfer(alice, recipient.id(), Money.ZERO, CORRELATION, aKey()));
-        assertThat(transactions.count).isZero();
+        assertThat(transactions.count - before).isZero();
     }
 
     @Test
