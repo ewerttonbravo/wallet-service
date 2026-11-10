@@ -19,16 +19,19 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Maps business errors, and a wallet too busy to lock, to Problem Details (RFC 9457), and counts
- * each as {@code wallet.refusals} by {@code reason}.
+ * each as {@code wallet.refusals} by {@code reason}. A database out of reach is answered too, but
+ * not counted: the service did not refuse the request.
  */
 @RestControllerAdvice
 class WalletProblemHandler {
@@ -74,6 +77,19 @@ class WalletProblemHandler {
         return ResponseEntity.status(status)
                 .header(HttpHeaders.RETRY_AFTER, "1")
                 .body(ProblemDetail.forStatusAndDetail(status, "The wallet is busy, retry the request"));
+    }
+
+    /**
+     * A read could not get a connection, or a posting could not start its transaction. A posting
+     * whose connection broke at commit may have been posted, so the safe retry is the same request
+     * with the same idempotency key, which replays it or posts it once.
+     */
+    @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
+    ResponseEntity<ProblemDetail> handleDatabaseUnreachable(RuntimeException exception) {
+        var status = HttpStatus.SERVICE_UNAVAILABLE;
+        return ResponseEntity.status(status)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(ProblemDetail.forStatusAndDetail(status, "The service cannot reach its database, retry the request"));
     }
 
     private static String reasonOf(Class<?> error) {
