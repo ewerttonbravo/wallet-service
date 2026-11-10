@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.JwkSetUriJwtDecoderBuilderCustomizer;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
@@ -73,6 +74,12 @@ class SecurityConfiguration {
                 // Bearer tokens only, no cookies: there is no ambient credential for CSRF to abuse.
                 .csrf(CsrfConfigurer::disable)
                 .build();
+    }
+
+    /** The issuer's keys, read within a bounded time, so an issuer that cannot answer gets a quick 503. */
+    @Bean
+    JwkSetUriJwtDecoderBuilderCustomizer issuerKeys(OAuth2ResourceServerProperties resourceServer) {
+        return IssuerKeys.readWithinBounds(resourceServer.getJwt());
     }
 
     /**
