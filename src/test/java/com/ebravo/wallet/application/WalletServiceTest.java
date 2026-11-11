@@ -797,6 +797,7 @@ class WalletServiceTest {
             return work.get();
         }
 
+        @Override
         public <T> T inReadTransaction(Supplier<T> work) {
             reads++;
             return work.get();

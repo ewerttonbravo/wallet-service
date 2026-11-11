@@ -74,6 +74,11 @@ class SpringTransactions implements Transactions {
         }
     }
 
+    @Override
+    public <T> T inReadTransaction(Supplier<T> work) {
+        return inTransaction(work);
+    }
+
     /**
      * The server ends a transaction past its budget together with its connection, and neither
      * Hibernate nor Spring knows the code it sends: each reports a generic database error, which

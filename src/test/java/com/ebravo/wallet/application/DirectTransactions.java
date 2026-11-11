@@ -9,4 +9,9 @@ public final class DirectTransactions implements Transactions {
     public <T> T inTransaction(Supplier<T> work) {
         return work.get();
     }
+
+    @Override
+    public <T> T inReadTransaction(Supplier<T> work) {
+        return work.get();
+    }
 }
