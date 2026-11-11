@@ -96,12 +96,12 @@ public final class WalletService {
     public WalletTransaction transfer(
             OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
-        // A wallet's id never changes, so it is read before the transaction, where no lock is held yet.
-        var source = get(owner).id();
-        if (source.equals(recipient)) {
-            throw new SameWalletTransferException();
-        }
         return counted(transactions.inTransaction(() -> {
+            // A wallet's id never changes, so it is read before any lock is taken.
+            var source = find(owner).id();
+            if (source.equals(recipient)) {
+                throw new SameWalletTransferException();
+            }
             // Every transfer locks its wallets in id order: two opposing transfers queue for the first
             // lock instead of each holding the one the other waits for.
             var locked = new HashMap<WalletId, Wallet>();
