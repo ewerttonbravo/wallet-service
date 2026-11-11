@@ -26,7 +26,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class ApiContractApiTest {
 
     // The probes are documented too, but they are served by the actuator, not this service's controllers.
-    private static final Set<String> PROBES = Set.of("/livez", "/readyz");
+    // Served outside the controllers: the probes by the actuator, the metadata by a security filter.
+    private static final Set<String> OUTSIDE_THE_CONTROLLERS = Set.of("/livez", "/readyz", "/.well-known/oauth-protected-resource");
     private static final String CONTRACT = read();
     private static final SwaggerParseResult PARSED = new OpenAPIV3Parser().readContents(CONTRACT);
 
@@ -104,7 +105,7 @@ class ApiContractApiTest {
 
     private static Set<String> documentedOperations() {
         return PARSED.getOpenAPI().getPaths().entrySet().stream()
-                .filter(path -> !PROBES.contains(path.getKey()))
+                .filter(path -> !OUTSIDE_THE_CONTROLLERS.contains(path.getKey()))
                 .flatMap(path -> path.getValue().readOperationsMap().keySet().stream()
                         .map(PathItem.HttpMethod::name)
                         .map(method -> method + " " + path.getKey()))

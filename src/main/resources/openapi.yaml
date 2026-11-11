@@ -350,6 +350,29 @@ paths:
           $ref: "#/components/responses/RefusedToken"
         "503":
           $ref: "#/components/responses/TokenUnchecked"
+  /.well-known/oauth-protected-resource:
+    get:
+      operationId: getProtectedResourceMetadata
+      summary: Protected resource metadata (RFC 9728)
+      description: >-
+        How to call this service: the authorization server that issues its tokens, sent in the
+        `Authorization` header. Every bearer challenge names this document in `resource_metadata`.
+        Answered before any token is read, so a token sent here is ignored.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: The metadata; `resource` is the address the request was sent to.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResourceMetadata"
+        "400":
+          $ref: "#/components/responses/BadRequest"
   /livez:
     get:
       operationId: getLiveness
@@ -702,6 +725,25 @@ components:
           type: string
         instance:
           type: string
+    ProtectedResourceMetadata:
+      type: object
+      additionalProperties: false
+      required: [resource, authorization_servers, bearer_methods_supported, tls_client_certificate_bound_access_tokens]
+      properties:
+        resource:
+          type: string
+          format: uri
+        authorization_servers:
+          type: array
+          items:
+            type: string
+            format: uri
+        bearer_methods_supported:
+          type: array
+          items:
+            const: header
+        tls_client_certificate_bound_access_tokens:
+          const: false
     Health:
       description: The aggregate health may also list its groups and components.
       type: object

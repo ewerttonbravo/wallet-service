@@ -44,7 +44,7 @@ class SecurityConfiguration {
 
     @Bean
     @Order(2)
-    SecurityFilterChain api(HttpSecurity http, JsonMapper json) {
+    SecurityFilterChain api(HttpSecurity http, JsonMapper json, OAuth2ResourceServerProperties resourceServer) {
         var problems = new BearerTokenProblems(json);
         return http
                 .authorizeHttpRequests(requests -> requests
@@ -60,6 +60,12 @@ class SecurityConfiguration {
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server
                         .jwt(Customizer.withDefaults())
+                        // Spring Security serves RFC 9728 metadata and offers no switch to turn it off; by
+                        // default it claims certificate-bound tokens, which this service does not enforce.
+                        .protectedResourceMetadata(metadata -> metadata.protectedResourceMetadataCustomizer(
+                                resource -> resource
+                                        .authorizationServer(resourceServer.getJwt().getIssuerUri())
+                                        .tlsClientCertificateBoundAccessTokens(false)))
                         .authenticationEntryPoint(problems)
                         .accessDeniedHandler(problems)
                         // The configurer offers no setter for it: a token that cannot be checked is 503.
