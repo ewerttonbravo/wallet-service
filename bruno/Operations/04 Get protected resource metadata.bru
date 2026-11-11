@@ -1,0 +1,31 @@
+meta {
+  name: Get protected resource metadata
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{api}}/.well-known/oauth-protected-resource
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.resource: eq {{api}}
+  res.body.tls_client_certificate_bound_access_tokens: eq false
+}
+
+tests {
+  test("names the issuer that signs the service's tokens", function () {
+    expect(res.getBody().authorization_servers).to.eql([bru.getEnvVar("issuer")]);
+  });
+
+  test("takes tokens in the Authorization header", function () {
+    expect(res.getBody().bearer_methods_supported).to.eql(["header"]);
+  });
+}
+
+docs {
+  RFC 9728 metadata, served without a token and named in every bearer challenge (resource_metadata).
+}
