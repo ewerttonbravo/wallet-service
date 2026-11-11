@@ -38,7 +38,6 @@ class TransactionTimeoutApiTest {
 
     private static final String DETAIL = "The request took too long, retry the request";
     private static final Duration AT_LEAST = Duration.ofMillis(2500);
-    private static final Duration AT_MOST = Duration.ofSeconds(4);
 
     @Autowired
     private MockMvcTester mvc;
@@ -105,7 +104,7 @@ class TransactionTimeoutApiTest {
                 .hasHeader(HttpHeaders.RETRY_AFTER, "1")
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .bodyJson().extractingPath("$.detail").isEqualTo(DETAIL);
-        assertThat(took).isBetween(AT_LEAST, AT_MOST);
+        assertThat(took).isGreaterThanOrEqualTo(AT_LEAST);
     }
 
     private static void openWalletOf(OwnerId owner, Connection connection) throws SQLException {

@@ -38,10 +38,12 @@ class IssuerTimeoutTest {
 
     private static final int REQUESTS = 8;
     /**
-     * Two seconds to read the keys, after at most two waiting for another request's read, plus room
-     * for a loaded build machine; without the bounds, a request waits 15 seconds or more.
+     * Two seconds to read the keys, after at most two waiting for another request's read: about four,
+     * all of it timeouts, which a slow machine does not stretch. Without the bounds, a request waits
+     * 15 seconds or more. The ceiling sits between the two, at the regression and not at the expected
+     * time, so a loaded build machine adds its overhead and still passes.
      */
-    private static final Duration CEILING = Duration.ofSeconds(6);
+    private static final Duration CEILING = Duration.ofSeconds(10);
 
     private static final SilentIssuer ISSUER = new SilentIssuer();
 

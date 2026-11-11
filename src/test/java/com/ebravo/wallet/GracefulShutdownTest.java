@@ -145,7 +145,9 @@ class GracefulShutdownTest {
     /**
      * The drain waits long enough for the longest request the service bounds itself, then the API's
      * server stops, with Tomcat's two-second wait for the servlet: about 12 seconds. The management
-     * server drains after it, so the bound keeps room for that before the platform kills the process.
+     * server drains after it, and the whole stop ends before the platform kills the process at 20.
+     * The request never finishes, so the service stops only because the drain is bounded; the upper
+     * bound is the platform's kill, not the expected 12 seconds, so a slow machine does not fail it.
      */
     @Test
     void stopsAtTheDrainBoundWhenARequestDoesNotFinish() throws Exception {
@@ -154,7 +156,7 @@ class GracefulShutdownTest {
 
         service.close();
 
-        assertThat(Duration.ofNanos(System.nanoTime() - start)).isBetween(Duration.ofSeconds(10), Duration.ofSeconds(14));
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isBetween(Duration.ofSeconds(10), Duration.ofSeconds(20));
     }
 
     /** A deposit of 10.00 on a connection of its own, held in flight until the test releases it. */

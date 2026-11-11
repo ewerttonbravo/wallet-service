@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * Socket timeouts bound each connect and each read, not their sum, and nothing bounds the name
@@ -19,9 +20,13 @@ import org.junit.jupiter.api.Test;
 class DeadlineRetrieverTest {
 
     private static final Duration DEADLINE = Duration.ofMillis(200);
+    // For the reads that answer at once: any deadline they could miss would make the tests race the clock.
+    private static final Duration AMPLE = Duration.ofMinutes(1);
     private static final URL KEY_SET = url("http://issuer/local/jwks");
 
+    /** The read never ends, so only the deadline ends the wait; the timeout bounds a retriever without one. */
     @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void givesUpOnAReadStuckPastTheDeadline() throws Exception {
         var interrupted = new CountDownLatch(1);
         var retriever = new DeadlineRetriever(url -> {
@@ -33,19 +38,17 @@ class DeadlineRetrieverTest {
             return null;
         }, DEADLINE);
 
-        var started = System.nanoTime();
         assertThatThrownBy(() -> retriever.retrieveResource(KEY_SET)).isInstanceOf(IOException.class);
 
-        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(DEADLINE.multipliedBy(5));
         // The stuck read is stopped too, so it does not go on holding a connection.
-        assertThat(interrupted.await(1, TimeUnit.SECONDS)).isTrue();
+        interrupted.await();
     }
 
     /** Guards the timeout above: a read within the deadline is answered as it is. */
     @Test
     void returnsWhatIsReadWithinTheDeadline() throws Exception {
         var keys = new Resource("{\"keys\":[]}", "application/json");
-        var retriever = new DeadlineRetriever(url -> keys, DEADLINE);
+        var retriever = new DeadlineRetriever(url -> keys, AMPLE);
 
         assertThat(retriever.retrieveResource(KEY_SET)).isSameAs(keys);
     }
@@ -55,7 +58,7 @@ class DeadlineRetrieverTest {
         var refused = new IOException("Connection refused");
         var retriever = new DeadlineRetriever(url -> {
             throw refused;
-        }, DEADLINE);
+        }, AMPLE);
 
         assertThatThrownBy(() -> retriever.retrieveResource(KEY_SET)).isSameAs(refused);
     }

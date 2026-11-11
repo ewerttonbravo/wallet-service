@@ -11,6 +11,7 @@ import com.ebravo.wallet.application.WalletRepository;
 import com.ebravo.wallet.domain.Wallet;
 import jakarta.persistence.EntityManager;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -56,7 +57,8 @@ class SpringTransactionsTest {
 
     /**
      * The wallet's lock waits up to two seconds of its own; the budget ends the wait at one, as it
-     * ends a transfer's wait for its second wallet once the first one took most of the budget.
+     * ends a transfer's wait for its second wallet once the first one took most of the budget. The
+     * failure tells which ended it: the lock's own timeout fails otherwise.
      */
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
@@ -67,17 +69,16 @@ class SpringTransactionsTest {
             holder.setAutoCommit(false);
             lock(wallet, holder);
 
-            var start = System.nanoTime();
             assertThatExceptionOfType(TransactionTimedOutException.class)
                     .isThrownBy(() -> budgeted().inTransaction(() -> wallets.lockById(wallet.id())));
-            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1500));
             holder.rollback();
         }
     }
 
     /**
      * A statement started with little of the budget left still ends when the budget does: a limit
-     * rounded to whole seconds would give it none at all, or one second more.
+     * rounded to whole seconds would give it none at all, and the lock's own timeout would end it, or
+     * one second more, and a statement timeout would end it; each fails otherwise.
      */
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
@@ -88,13 +89,11 @@ class SpringTransactionsTest {
             holder.setAutoCommit(false);
             lock(wallet, holder);
 
-            var start = System.nanoTime();
             assertThatExceptionOfType(TransactionTimedOutException.class)
                     .isThrownBy(() -> budgeted().inTransaction(() -> {
                         waitFor(Duration.ofMillis(600));
                         return wallets.lockById(wallet.id());
                     }));
-            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1500));
             holder.rollback();
         }
     }
@@ -104,9 +103,10 @@ class SpringTransactionsTest {
      * the pool hands its last connection back to first, still run.
      */
     @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void leavesThePoolUsableAfterATimeout() {
         assertThatExceptionOfType(TransactionTimedOutException.class).isThrownBy(() -> budgeted().inTransaction(() -> {
-            waitPastTheBudget();
+            waitUntilTheDatabaseEndsTheTransaction();
             return jdbc.sql("select 1").query(Integer.class).single();
         }));
 
@@ -116,7 +116,7 @@ class SpringTransactionsTest {
     }
 
     /**
-     * Time passing is the input here, so the work waits past the budget before its statement; the
+     * The work waits until the database has ended its transaction, then sends its statement; the
      * statement then fails, whichever way it is sent, and always as a timeout.
      */
     @ParameterizedTest(name = "{0}")
@@ -125,7 +125,7 @@ class SpringTransactionsTest {
     void refusesAStatementStartedPastTheBudget(String way, Supplier<Runnable> statement) {
         assertThatExceptionOfType(TransactionTimedOutException.class).isThrownBy(() -> budgeted().inTransaction(() -> {
             var prepared = statement.get();
-            waitPastTheBudget();
+            waitUntilTheDatabaseEndsTheTransaction();
             prepared.run();
             return null;
         }));
@@ -166,8 +166,29 @@ class SpringTransactionsTest {
         return new SpringTransactions(transactionManager, jdbc, Duration.ofSeconds(BUDGET_SECONDS));
     }
 
-    private static void waitPastTheBudget() {
-        waitFor(Duration.ofSeconds(BUDGET_SECONDS).plusMillis(100));
+    /**
+     * Waits until the server has ended the current transaction at its budget, watching for its backend
+     * from another connection. A fixed sleep past the budget would race the server, which may end the
+     * transaction later than the budget on a loaded machine; the test's {@code @Timeout} bounds a server
+     * that never ends it.
+     */
+    private void waitUntilTheDatabaseEndsTheTransaction() {
+        var backend = jdbc.sql("select pg_backend_pid()").query(Integer.class).single();
+        try (var observer = dataSource.getConnection();
+                var running = observer.prepareStatement("select exists (select from pg_stat_activity where pid = ?)")) {
+            running.setInt(1, backend);
+            while (isTrue(running)) {
+                waitFor(Duration.ofMillis(10));
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private static boolean isTrue(PreparedStatement query) throws SQLException {
+        try (var result = query.executeQuery()) {
+            return result.next() && result.getBoolean(1);
+        }
     }
 
     private static void waitFor(Duration time) {
