@@ -27,7 +27,7 @@ Dependencies point inward: technology depends on the domain, never the other way
 - Structured logs in Elastic Common Schema, Spring Boot's own format, one JSON object per line.
 - A [Bruno](https://www.usebruno.com) collection of every endpoint on the API's port, in `bruno/`: usage examples and end-to-end checks.
 - GitHub Actions, on every pull request and every push to `main`: `./mvnw verify`, and the Bruno collection against the stack Docker Compose starts.
-- Dependabot, weekly: pull requests for new versions of the Maven dependencies, the Docker base images and the GitHub Actions; alerts and security updates for dependencies with known vulnerabilities.
+- Dependabot, weekly: pull requests for new versions of the Maven dependencies, the Docker base images and the GitHub Actions; alerts and security updates for dependencies with known vulnerabilities. A new major Java release is left out of the base image updates: the service targets Java 25 (LTS), and moving to another release is a decision of its own.
 
 ## API
 

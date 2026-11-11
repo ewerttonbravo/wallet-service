@@ -8,6 +8,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The service targets Java 25 (LTS); moving to another Java release is a decision of its own.
+      - dependency-name: eclipse-temurin
+        update-types:
+          - "version-update:semver-major"
   - package-ecosystem: github-actions
     directory: /
     schedule:
