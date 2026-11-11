@@ -48,18 +48,19 @@ final class RequestFields {
     }
 
     static WalletId walletId(String field, String value) {
-        if (value == null || !CANONICAL_UUID.matcher(value).matches()) {
-            throw malformed(field + " must be a wallet id such as \"0b6a9c7e-3f1d-4e2a-9c5b-7d8e1f2a3b4c\"");
-        }
-        return new WalletId(UUID.fromString(value));
+        return new WalletId(canonicalUuid(value, field + " must be a wallet id such as \"0b6a9c7e-3f1d-4e2a-9c5b-7d8e1f2a3b4c\""));
     }
 
     /** Read as a string: Spring's own conversion would echo the rejected value in its error. */
     static TransactionId transactionId(String value) {
-        if (!CANONICAL_UUID.matcher(value).matches()) {
-            throw malformed("id must be a transaction id such as \"6f1c2e9a-0d5b-4c4e-9a43-5d8f0b1e2c3d\"");
+        return new TransactionId(canonicalUuid(value, "id must be a transaction id such as \"6f1c2e9a-0d5b-4c4e-9a43-5d8f0b1e2c3d\""));
+    }
+
+    private static UUID canonicalUuid(String value, String rule) {
+        if (value == null || !CANONICAL_UUID.matcher(value).matches()) {
+            throw malformed(rule);
         }
-        return new TransactionId(UUID.fromString(value));
+        return UUID.fromString(value);
     }
 
     /** Checked here rather than by Spring, so a missing header gets the same Problem Details as a malformed one. */

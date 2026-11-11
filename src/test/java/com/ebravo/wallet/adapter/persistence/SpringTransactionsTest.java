@@ -213,7 +213,7 @@ class SpringTransactionsTest {
     }
 
     private SpringTransactions budgeted() {
-        return new SpringTransactions(transactionManager, jdbc, Duration.ofSeconds(BUDGET_SECONDS));
+        return new SpringTransactions(transactionManager, jdbc, Duration.ofSeconds(BUDGET_SECONDS), SpringTransactions.READ_BUDGET);
     }
 
     /**
