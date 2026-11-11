@@ -1,0 +1,35 @@
+name: Drain stress
+
+on:
+  push:
+    branches: [fix/drain-test-two-cpus-ci]
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - run: ./mvnw -B -q test-compile
+      - name: Ten runs on two cores
+        run: |
+          failed=0
+          for i in $(seq 1 10); do
+            if taskset -c 0,1 ./mvnw -B -o surefire:test -Dtest='GracefulShutdownTest#finishes*+refuses*+postsNothing*' > run.log 2>&1; then
+              echo "run $i: pass"
+            else
+              failed=$((failed + 1))
+              echo "run $i: FAIL"
+              grep -E '\[ERROR\]   |<<< (FAILURE|ERROR)' run.log | head -6
+            fi
+          done
+          echo "shard ${{ matrix.shard }}: $failed of 10 failed"
+          test "$failed" -eq 0

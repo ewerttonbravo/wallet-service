@@ -15,7 +15,9 @@ jobs:
           distribution: temurin
           java-version: 25
           cache: maven
-      - run: ./mvnw -B verify
+      # Two cores, as the runner of a private repository has: the JVM sizes its pools from them, and
+      # a test that only passes with more fails here first.
+      - run: taskset -c 0,1 ./mvnw -B verify
 
   # The stack as the README runs it: the service image next to PostgreSQL and the issuer,
   # called by the API collection with tokens fetched from the host side.
