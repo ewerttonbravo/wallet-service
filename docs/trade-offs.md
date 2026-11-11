@@ -122,5 +122,6 @@ Each compromise has a kind: a **design choice** would stay the same with more ti
 | 19 | Delivery: reads bounded by a five-second read-only budget, measured on a wallet of a million entries, and the driver by a ten-second socket timeout; keys kept through an issuer outage, a key not read yet answered `503`; the protected resource metadata stated truthfully; full transaction ids and one Problem Details shape; a transfer back to one transaction after the code review; final review of assumptions, trade-offs and time | 1.0 |
 | 20 | Final review against the brief: the deposit trust boundary and the persistence mapping recorded as compromises, Dependabot for dependencies, base images and actions, a summary at the top of the README | 0.75 |
 | Fix | Drain test on two CPUs: its held request and its shutdown no longer share the common pool, which has one worker there; only a refused connection counts as a refusal; the whole suite checked on one and two CPUs | 0.17 |
+| Fix | Drain test proven on two cores: CI builds on two cores (`taskset -c 0,1`), as a private repository's runner; a stress run reproduced the reset the probe did not count as a refusal (4 of 50 runs) before the fix and passed 50 of 50 after it | 1.0 |
 | Outside the increments | Reviewing pull requests, running and checking the service locally, reading the docs between sessions | 13.11 |
-| **Total** | | **25.59** |
+| **Total** | | **26.59** |
