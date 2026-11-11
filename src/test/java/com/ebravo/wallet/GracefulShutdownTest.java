@@ -16,6 +16,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
@@ -28,6 +29,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -52,6 +55,9 @@ class GracefulShutdownTest {
     private static final PostgreSQLContainer DATABASE = new PostgreSQLContainer(TestcontainersConfiguration.POSTGRES_IMAGE);
 
     private final OwnerId owner = anOwner();
+    // A thread per task, not the common pool: on two CPUs the pool has one worker, which the held
+    // deposit keeps busy, and the shutdown queued behind it would only begin once the deposit ends.
+    private final ExecutorService threads = Executors.newThreadPerTaskExecutor(Thread.ofPlatform().factory());
     private ConfigurableApplicationContext service;
     private int port;
     private Hold hold;
@@ -88,6 +94,7 @@ class GracefulShutdownTest {
     void closeTheService() {
         hold.release();
         service.close();
+        threads.close();
     }
 
     @Test
@@ -161,22 +168,26 @@ class GracefulShutdownTest {
 
     /** A deposit of 10.00 on a connection of its own, held in flight until the test releases it. */
     private CompletableFuture<Optional<Response>> holdADeposit() throws InterruptedException {
-        var deposit = CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)));
+        var deposit = CompletableFuture.supplyAsync(() -> sendOnANewConnection(deposit("10.00", true)), threads);
         hold.awaitArrival();
         return deposit;
     }
 
     private CompletableFuture<Void> beginShutdown() {
-        return CompletableFuture.runAsync(service::close);
+        return CompletableFuture.runAsync(service::close, threads);
     }
 
-    /** The server stops accepting connections a few milliseconds after the shutdown begins. */
-    private void awaitConnectionsRefused() {
+    /**
+     * The server stops accepting connections a few milliseconds after the shutdown begins. Only a
+     * refusal counts: a connection the client side could not even attempt, such as one with no
+     * local port left, says nothing about the server.
+     */
+    private void awaitConnectionsRefused() throws IOException {
         var deadline = Instant.now().plusSeconds(5);
         while (Instant.now().isBefore(deadline)) {
             try (var accepted = new Socket("localhost", port)) {
                 Thread.onSpinWait(); // accepted: the server socket is not closed yet
-            } catch (IOException refused) {
+            } catch (ConnectException refused) {
                 return;
             }
         }
