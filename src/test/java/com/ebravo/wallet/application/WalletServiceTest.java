@@ -730,6 +730,11 @@ class WalletServiceTest {
                 work.get();
                 throw new IllegalStateException("commit failed");
             }
+
+            @Override
+            public <T> T inReadTransaction(Supplier<T> work) {
+                return work.get();
+            }
         };
         var failing = new WalletService(wallets, ledger, keys, failingAtCommit, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
 
