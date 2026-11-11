@@ -64,6 +64,9 @@ final class IssuerKeys {
     static JWKSource<SecurityContext> keySet(URL url, ResourceRetriever retriever, long cacheTimeToLive) {
         return JWKSourceBuilder.<SecurityContext>create(url, retriever)
                 .cache(cacheTimeToLive, WAIT_MILLIS)
+                // Keys read keep checking tokens through an issuer outage, for ten times the cache's
+                // life (Nimbus's default): fifty minutes, about the life of the tokens already out.
+                .outageTolerant(true)
                 .refreshAheadCache(false)
                 .rateLimited(false)
                 .build();
