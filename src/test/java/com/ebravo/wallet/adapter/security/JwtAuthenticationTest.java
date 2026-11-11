@@ -78,6 +78,25 @@ class JwtAuthenticationTest {
         assertProblem(result, path);
     }
 
+    /**
+     * The protected resource metadata (RFC 9728), which Spring Security serves without a token and
+     * names in every bearer challenge, states what the service enforces: tokens from its issuer, in the
+     * header, not bound to a client certificate.
+     */
+    @Test
+    void describesTheResourceAndItsIssuer() {
+        var challenge = mvc.get().uri("/wallets/me").exchange().getResponse().getHeader(WWW_AUTHENTICATE);
+        assertThat(challenge).contains("resource_metadata=\"http://localhost/.well-known/oauth-protected-resource\"");
+
+        assertThat(mvc.get().uri("/.well-known/oauth-protected-resource"))
+                .hasStatusOk()
+                .hasContentType(MediaType.APPLICATION_JSON)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"resource": "http://localhost", "authorization_servers": ["%s"],
+                         "bearer_methods_supported": ["header"], "tls_client_certificate_bound_access_tokens": false}
+                        """.formatted(issuer.issuerUri()));
+    }
+
     // A fresh owner has no wallet: an accepted token answers 404, so 401 can only mean rejection.
     private void assertRejected(String token) {
         var result = mvc.get().uri("/wallets/me").header(AUTHORIZATION, bearer(token)).exchange();
