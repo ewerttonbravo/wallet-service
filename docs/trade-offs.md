@@ -115,3 +115,5 @@ Each compromise has a kind: a **design choice** would stay the same with more ti
 | 17 | Transaction budget: every posting and wallet opening ended by the database at three seconds, rolled back and answered `503` with `Retry-After`; a per-statement limit tried first and replaced after the code review found statements it left unbounded | 0.17 |
 | 18 | Graceful shutdown: new connections refused at once, requests in flight drained for up to ten seconds, below Compose's 20-second kill; the drain proven against a service the tests stop | 0.17 |
 | Fix | Test timing: timeouts proven by the failure they raise, not by a wall-clock bound that passed or failed with the machine; upper bounds kept only where the requirement is a time, set at the requirement or the regression; the README's build and run steps put before the commands they affect | 0.75 |
+| Outside the increments | Reviewing pull requests, running and checking the service locally, reading the docs between sessions | 13.11 |
+| **Total** | | **23.67** |
