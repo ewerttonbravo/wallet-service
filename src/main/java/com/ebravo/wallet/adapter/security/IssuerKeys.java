@@ -3,12 +3,15 @@ package com.ebravo.wallet.adapter.security;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.DefaultResourceRetriever;
+import com.nimbusds.jose.util.Resource;
 import com.nimbusds.jose.util.ResourceRetriever;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
@@ -37,8 +40,8 @@ final class IssuerKeys {
 
     /**
      * Keeps the decoder Spring Boot builds, with its issuer and audience validation, and swaps only
-     * where its keys come from. Caching and refresh are left as Spring Security sets them; only the
-     * waits change.
+     * where its keys come from. The cache's life is Spring Security's; the waits are bounded, and the
+     * keys read outlast an issuer outage (see {@link #keySet(URL, ResourceRetriever, long)}).
      */
     static JwkSetUriJwtDecoderBuilderCustomizer readWithinBounds(OAuth2ResourceServerProperties.Jwt jwt) {
         requireIssuerAndKeySet(jwt);
@@ -60,9 +63,15 @@ final class IssuerKeys {
         return keySet(url, new DeadlineRetriever(socket, WAIT), JWKSourceBuilder.DEFAULT_CACHE_TIME_TO_LIVE);
     }
 
-    /** The cache's time to live is Spring Security's in production; a test shortens it. */
+    /**
+     * The cache's time to live is Spring Security's in production; a test shortens it. A key the
+     * service has not read is looked for at the issuer; while the issuer is down, Nimbus serves the
+     * keys already read instead, and a token signed by a key it rotated to would be refused as signed
+     * by none. That token cannot be checked yet, like any token when no key can be read.
+     */
     static JWKSource<SecurityContext> keySet(URL url, ResourceRetriever retriever, long cacheTimeToLive) {
-        return JWKSourceBuilder.<SecurityContext>create(url, retriever)
+        var issuer = new IssuerReads(retriever);
+        var keys = JWKSourceBuilder.<SecurityContext>create(url, issuer)
                 .cache(cacheTimeToLive, WAIT_MILLIS)
                 // Keys read keep checking tokens through an issuer outage, for ten times the cache's
                 // life (Nimbus's default): fifty minutes, about the life of the tokens already out.
@@ -70,6 +79,36 @@ final class IssuerKeys {
                 .refreshAheadCache(false)
                 .rateLimited(false)
                 .build();
+        return (selector, context) -> {
+            var found = keys.get(selector, context);
+            if (found.isEmpty() && issuer.down) {
+                throw new KeySourceException("No key read matches, and the issuer cannot be read to look for it");
+            }
+            return found;
+        };
+    }
+
+    /** Whether the issuer answered its latest read. */
+    private static final class IssuerReads implements ResourceRetriever {
+
+        private final ResourceRetriever retriever;
+        private volatile boolean down;
+
+        IssuerReads(ResourceRetriever retriever) {
+            this.retriever = retriever;
+        }
+
+        @Override
+        public Resource retrieveResource(URL url) throws IOException {
+            try {
+                var keySet = retriever.retrieveResource(url);
+                down = false;
+                return keySet;
+            } catch (IOException | RuntimeException failure) {
+                down = true;
+                throw failure;
+            }
+        }
     }
 
     /**
