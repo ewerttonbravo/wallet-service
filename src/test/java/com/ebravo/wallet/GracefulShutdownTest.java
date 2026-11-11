@@ -16,8 +16,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
-import java.net.ConnectException;
+import java.net.BindException;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
 import java.time.Duration;
@@ -178,18 +179,22 @@ class GracefulShutdownTest {
     }
 
     /**
-     * The server stops accepting connections a few milliseconds after the shutdown begins. Only a
-     * refusal counts: a connection the client side could not even attempt, such as one with no
-     * local port left, says nothing about the server.
+     * The server stops accepting connections a few milliseconds after the shutdown begins: a new
+     * connection is refused, or reset if it was still queued when the server closed its socket. A
+     * connection the client side could not even attempt, with no local port left, says nothing
+     * about the server; the pause between attempts keeps the client from running out of them.
      */
-    private void awaitConnectionsRefused() throws IOException {
+    private void awaitConnectionsRefused() throws IOException, InterruptedException {
         var deadline = Instant.now().plusSeconds(5);
         while (Instant.now().isBefore(deadline)) {
             try (var accepted = new Socket("localhost", port)) {
-                Thread.onSpinWait(); // accepted: the server socket is not closed yet
-            } catch (ConnectException refused) {
+                // Accepted: the server socket is not closed yet.
+            } catch (BindException noLocalPort) {
+                throw noLocalPort;
+            } catch (SocketException refusedOrReset) {
                 return;
             }
+            Thread.sleep(5);
         }
         throw new AssertionError("the service still accepts connections");
     }
