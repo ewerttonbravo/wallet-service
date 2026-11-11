@@ -18,17 +18,19 @@ jobs:
           distribution: temurin
           java-version: 25
           cache: maven
-      - run: ./mvnw -B -q test-compile
+      # Resolves every plugin the test phase needs, so the runs below can go offline.
+      - run: ./mvnw -B -q test -Dtest=CorrelationIdTest -Dsurefire.failIfNoSpecifiedTests=false
       - name: Ten runs on two cores
         run: |
           failed=0
           for i in $(seq 1 10); do
-            if taskset -c 0,1 ./mvnw -B -o surefire:test -Dtest='GracefulShutdownTest#finishes*+refuses*+postsNothing*' > run.log 2>&1; then
+            if taskset -c 0,1 ./mvnw -B -o test -Dtest='GracefulShutdownTest#finishes*+refuses*+postsNothing*' -Dsurefire.failIfNoSpecifiedTests=false > run.log 2>&1; then
               echo "run $i: pass"
             else
               failed=$((failed + 1))
               echo "run $i: FAIL"
               grep -E '\[ERROR\]   |<<< (FAILURE|ERROR)' run.log | head -6
+              grep -vE '^\{"@timestamp"' run.log | tail -15
             fi
           done
           echo "shard ${{ matrix.shard }}: $failed of 10 failed"
