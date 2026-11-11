@@ -57,8 +57,10 @@ class DatabaseHangTest {
 
     /**
      * A statement sent on a connection that was working gets no answer: the driver gives up on the
-     * silent socket and reports a lost connection, which the service answers 503 (D50). Without a
-     * socket timeout it would wait until the test's own timeout.
+     * silent socket and reports a lost connection (class 08). Without a socket timeout it would wait
+     * until the test's own timeout. The rest of the way to 503 is pinned elsewhere: the dialect reads
+     * class 08 as a lost connection ({@code ShutdownAwarePostgreSQLDialectTest}), which the service
+     * answers 503 (D50, {@link DatabaseOutageTest}).
      */
     @Test
     @Timeout(value = 60, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)

@@ -25,7 +25,6 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @IntegrationTest
 class ApiContractApiTest {
 
-    // The probes are documented too, but they are served by the actuator, not this service's controllers.
     // Served outside the controllers: the probes by the actuator, the metadata by a security filter.
     private static final Set<String> OUTSIDE_THE_CONTROLLERS = Set.of("/livez", "/readyz", "/.well-known/oauth-protected-resource");
     private static final String CONTRACT = read();
