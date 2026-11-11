@@ -14,22 +14,25 @@ Work in progress. Wallets, current and past balances, deposits, withdrawals, tra
 
 Requires JDK 25 and a running Docker daemon: integration tests start their own PostgreSQL and token issuer with Testcontainers. The Maven Wrapper downloads Maven on first use.
 
+With Colima instead of Docker Desktop, start it and point Testcontainers to its socket first, in the shell that runs the build:
+
+```sh
+colima start
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
+```
+
+Then build and test:
+
 ```sh
 ./mvnw verify
 ```
 
 The build fails if line or branch coverage of the domain or application code drops below 100%, if a mutant of the domain or application code survives the tests (PIT, report in `target/pit-reports`), if the domain or application layers depend on any framework, or if an API test sends or receives something the [OpenAPI contract](src/main/resources/openapi.yaml) does not describe.
 
-With Colima instead of Docker Desktop, point Testcontainers to its socket first:
-
-```sh
-export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
-export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
-```
-
 ## Run
 
-Requires Docker with Compose, plus `curl` and `jq` for the examples. Build the service image and start it with PostgreSQL and the local token issuer:
+Requires Docker with Compose, plus `curl` and `jq` for the examples. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`, and the URLs that name it: for 8080, `api` in `bruno/environments/local.bru` and the examples below; for 9000, `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml`, `issuer` and `untrustedIssuer` in `bruno/environments/local.bru`, and the examples below. Build the service image and start it with PostgreSQL and the local token issuer:
 
 ```sh
 docker compose up -d --wait --build
@@ -101,7 +104,7 @@ Metrics are in Prometheus format on the management port, 8081, which Compose kee
 docker compose exec wallet-service wget -qO- localhost:8081/actuator/prometheus | grep '^wallet_'
 ```
 
-Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. If port 8080, 5432 or 9000 is taken, change the host side of `ports` in `compose.yaml`, and the URLs that name it: for 8080, `api` in `bruno/environments/local.bru` and the examples above; for 9000, `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` in `compose.yaml`, `issuer` and `untrustedIssuer` in `bruno/environments/local.bru`, and the examples above. Stop everything with `docker compose down -v`.
+Tokens for any audience other than `wallet-service`, or from any issuer other than `http://localhost:9000/local`, are rejected with `401`. Tokens name the issuer by the address they were requested at, so request them at `localhost:9000`: a token from `127.0.0.1:9000` names another issuer. Stop everything with `docker compose down -v`.
 
 ### Run from source
 
