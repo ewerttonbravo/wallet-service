@@ -3,10 +3,8 @@ package com.ebravo.wallet.adapter.web;
 import com.ebravo.wallet.application.WalletService;
 import com.ebravo.wallet.domain.CorrelationId;
 import com.ebravo.wallet.domain.OwnerId;
-import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.WalletTransaction;
 import java.net.URI;
-import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -93,8 +91,8 @@ class WalletController {
     }
 
     @GetMapping("/me/transactions/{id}")
-    TransactionResponse transaction(@AuthenticationPrincipal Jwt token, @PathVariable UUID id) {
-        return TransactionResponse.of(wallets.transaction(ownerOf(token), new TransactionId(id)));
+    TransactionResponse transaction(@AuthenticationPrincipal Jwt token, @PathVariable String id) {
+        return TransactionResponse.of(wallets.transaction(ownerOf(token), RequestFields.transactionId(id)));
     }
 
     private static ResponseEntity<TransactionResponse> posted(WalletTransaction transaction) {
