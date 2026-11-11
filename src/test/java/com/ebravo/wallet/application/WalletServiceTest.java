@@ -426,10 +426,13 @@ class WalletServiceTest {
         var recipient = service.open(anOwner());
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
         var before = transactions.count;
+        var reads = transactions.reads;
 
         service.transfer(alice, recipient.id(), money("10.50"), CORRELATION, aKey());
 
         assertThat(transactions.count - before).isEqualTo(1);
+        // The sender's wallet is found in that transaction too, within its budget.
+        assertThat(transactions.reads).isEqualTo(reads);
     }
 
     @Test
@@ -466,18 +469,19 @@ class WalletServiceTest {
         assertThat(ledger.size()).isEqualTo(depositsOnly);
     }
 
-    // A transfer to another wallet opens a transaction (eachTransferRunsInOneTransaction); this one
-    // can never succeed, so it must not wait for its wallet's lock either.
+    // A transfer to another wallet locks both wallets (locksBothWalletsInIdOrderWhicheverWayMoneyMoves);
+    // this one can never succeed, so it must not wait for its wallet's lock either.
     @Test
     void refusesATransferToTheOwnersOwnWalletBeforeTouchingIt() {
+        var locks = new RecordingLocks(wallets);
+        var recordingService = new WalletService(locks, ledger, keys, transactions, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
         var alice = anOwner();
         var wallet = service.open(alice);
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
-        var before = transactions.count;
 
         assertThatExceptionOfType(SameWalletTransferException.class)
-                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.50"), CORRELATION, aKey()));
-        assertThat(transactions.count).isEqualTo(before);
+                .isThrownBy(() -> recordingService.transfer(alice, wallet.id(), money("10.50"), CORRELATION, aKey()));
+        assertThat(locks.taken).isEmpty();
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
     }
 
