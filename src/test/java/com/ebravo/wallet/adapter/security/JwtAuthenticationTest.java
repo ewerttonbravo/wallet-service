@@ -97,6 +97,16 @@ class JwtAuthenticationTest {
                         """.formatted(issuer.issuerUri()));
     }
 
+    /** The metadata is answered before any token is read, so even a forged one does not refuse it. */
+    @Test
+    void answersTheResourceMetadataWhateverTokenIsSent() {
+        var forged = withSubject(issuer.tokenFor(anOwner(), AUDIENCE), anOwner());
+        assertRejected(forged);
+
+        assertThat(mvc.get().uri("/.well-known/oauth-protected-resource").header(AUTHORIZATION, bearer(forged)))
+                .hasStatusOk();
+    }
+
     // A fresh owner has no wallet: an accepted token answers 404, so 401 can only mean rejection.
     private void assertRejected(String token) {
         var result = mvc.get().uri("/wallets/me").header(AUTHORIZATION, bearer(token)).exchange();
