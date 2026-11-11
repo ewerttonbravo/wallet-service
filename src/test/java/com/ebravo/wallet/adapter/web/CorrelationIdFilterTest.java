@@ -8,11 +8,12 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Every line logged while a request runs carries its correlation id, and no line after it. */
 class CorrelationIdFilterTest {
 
-    private final CorrelationIdFilter filter = new CorrelationIdFilter();
+    private final CorrelationIdFilter filter = new CorrelationIdFilter(JsonMapper.builder().build());
 
     @Test
     void putsTheCorrelationIdOnLogsWrittenDuringTheRequest() throws Exception {

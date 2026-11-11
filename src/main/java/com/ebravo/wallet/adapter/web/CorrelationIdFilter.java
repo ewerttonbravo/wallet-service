@@ -6,7 +6,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -14,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Takes the caller's correlation id, or generates one, returns it on every response and puts it on
@@ -29,9 +29,13 @@ class CorrelationIdFilter extends OncePerRequestFilter {
     static final String LOG_KEY = "correlationId";
 
     // Fixed text: the rejected value is never echoed back.
-    private static final String MALFORMED = """
-            {"type":"about:blank","title":"Bad Request","status":400,\
-            "detail":"X-Correlation-Id must be 1 to 64 letters, digits, '.', '_', ':' or '-'"}""";
+    private static final String MALFORMED = "X-Correlation-Id must be 1 to 64 letters, digits, '.', '_', ':' or '-'";
+
+    private final JsonMapper json;
+
+    CorrelationIdFilter(JsonMapper json) {
+        this.json = json;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -41,10 +45,12 @@ class CorrelationIdFilter extends OncePerRequestFilter {
         try {
             correlationId = header == null ? CorrelationId.generate() : new CorrelationId(header);
         } catch (IllegalArgumentException malformed) {
-            response.setStatus(HttpStatus.BAD_REQUEST.value());
-            response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+            var status = HttpStatus.BAD_REQUEST;
+            response.setStatus(status.value());
             // JSON is UTF-8 by definition and takes no charset parameter, like Spring's own Problem Details.
-            response.getOutputStream().write(MALFORMED.getBytes(StandardCharsets.UTF_8));
+            response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+            json.writeValue(response.getOutputStream(),
+                    new Problem(status.getReasonPhrase(), status.value(), MALFORMED, request.getRequestURI()));
             return;
         }
         request.setAttribute(ATTRIBUTE, correlationId);
@@ -53,5 +59,12 @@ class CorrelationIdFilter extends OncePerRequestFilter {
         try (var _ = MDC.putCloseable(LOG_KEY, correlationId.value())) {
             chain.doFilter(request, response);
         }
+    }
+
+    /**
+     * The fields Spring MVC writes for every other error; {@code type} is left out, as
+     * {@code about:blank}. The filter answers before MVC, so it cannot use MVC's converters.
+     */
+    private record Problem(String title, int status, String detail, String instance) {
     }
 }
