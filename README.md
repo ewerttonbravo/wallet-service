@@ -6,6 +6,28 @@ A microservice that keeps users' wallets: it opens wallets, takes deposits and w
 
 Built with Java 25 and Spring Boot, following test-driven development and a clean separation between the domain and the technology around it.
 
+## At a glance
+
+| Requirement | Where |
+|---|---|
+| Create wallet | `POST /wallets`: one wallet per user, the owner taken from the token |
+| Retrieve balance | `GET /wallets/me/balance` |
+| Retrieve historical balance | `GET /wallets/me/balance?at=2026-11-09T10:00:00Z` |
+| Deposit, withdraw | `POST /wallets/me/deposits`, `POST /wallets/me/withdrawals`: no overdraft |
+| Transfer | `POST /wallets/me/transfers`: both wallets change in one database transaction |
+| Full traceability | Double-entry, append-only ledger, kept so by the database; `GET /wallets/me/transactions` lists it |
+| Mission-critical | Stateless, readiness that follows the database, `503` with `Retry-After` within a bounded time when a dependency fails, graceful shutdown |
+
+Five decisions carry most of the design ([all decisions](docs/design.md#decisions), [requirement by requirement](docs/design.md#requirements-traceability)):
+
+1. Every operation is a ledger transaction whose entries sum to zero; each wallet entry keeps the resulting balance, so a past balance is read from the ledger alone and any balance can be rebuilt.
+2. A posting locks its wallets (a transfer, in wallet id order) and a database check keeps balances non-negative.
+3. Deposits, withdrawals and transfers require an `Idempotency-Key`: a retry gets the original transaction back and moves no money.
+4. Every posting runs within a time budget the database enforces, so no request holds a wallet's lock longer than three seconds.
+5. The domain and use cases depend on no framework, and the build fails below 100% line, branch and mutation coverage there.
+
+The main compromises ([all trade-offs](docs/trade-offs.md#trade-offs)): a single PostgreSQL instance, with replication left to the platform; operations on one wallet run one after another; any authenticated user can deposit, since settlement with payment rails is out of scope; TLS and rate limits belong to the gateway.
+
 ## Status
 
 Complete: every increment of the [roadmap](docs/roadmap.md) is built. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer, and serves its OpenAPI contract. It writes structured logs and metrics, bounds every request it serves, answers `503` when its database or token issuer is unavailable, and drains the requests in flight when it stops.
