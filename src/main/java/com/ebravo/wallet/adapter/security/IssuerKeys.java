@@ -8,8 +8,10 @@ import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.DefaultResourceRetriever;
+import com.nimbusds.jose.util.ResourceRetriever;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -47,18 +49,24 @@ final class IssuerKeys {
     }
 
     private static JWKSource<SecurityContext> keySet(String uri) {
+        URL url;
         try {
-            var socket = new DefaultResourceRetriever(WAIT_MILLIS, WAIT_MILLIS, JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT);
-            socket.setHeaders(Map.of("Accept", List.of(KEY_SET_TYPES)));
-            var retriever = new DeadlineRetriever(socket, WAIT);
-            return JWKSourceBuilder.<SecurityContext>create(URI.create(uri).toURL(), retriever)
-                    .cache(JWKSourceBuilder.DEFAULT_CACHE_TIME_TO_LIVE, WAIT_MILLIS)
-                    .refreshAheadCache(false)
-                    .rateLimited(false)
-                    .build();
+            url = URI.create(uri).toURL();
         } catch (MalformedURLException | IllegalArgumentException e) {
             throw new IllegalStateException("spring.security.oauth2.resourceserver.jwt.jwk-set-uri is not a URL", e);
         }
+        var socket = new DefaultResourceRetriever(WAIT_MILLIS, WAIT_MILLIS, JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT);
+        socket.setHeaders(Map.of("Accept", List.of(KEY_SET_TYPES)));
+        return keySet(url, new DeadlineRetriever(socket, WAIT), JWKSourceBuilder.DEFAULT_CACHE_TIME_TO_LIVE);
+    }
+
+    /** The cache's time to live is Spring Security's in production; a test shortens it. */
+    static JWKSource<SecurityContext> keySet(URL url, ResourceRetriever retriever, long cacheTimeToLive) {
+        return JWKSourceBuilder.<SecurityContext>create(url, retriever)
+                .cache(cacheTimeToLive, WAIT_MILLIS)
+                .refreshAheadCache(false)
+                .rateLimited(false)
+                .build();
     }
 
     /**
