@@ -33,6 +33,7 @@ class IssuerKeysTest {
 
     private static final Duration CACHE = Duration.ofMillis(200);
     private static final String KEY_ID = "signing-key";
+    private static final String ROTATED_KEY_ID = "rotated-key";
     private static final URL KEY_SET = url("http://issuer/local/jwks");
 
     @Test
@@ -100,8 +101,36 @@ class IssuerKeysTest {
         assertThatExceptionOfType(KeySourceException.class).isThrownBy(() -> signingKeys(keys));
     }
 
+    /**
+     * A key the service has not read may be one the issuer rotated to just before it went down: the
+     * token can be checked only once the issuer answers, so it is not refused as signed by no key.
+     */
+    @Test
+    void cannotCheckAKeyItHasNotReadWhileTheIssuerIsDown() throws Exception {
+        var issuer = new Issuer();
+        var keys = IssuerKeys.keySet(KEY_SET, issuer, CACHE.toMillis());
+        assertThat(signingKeys(keys)).hasSize(1);
+
+        issuer.down = true;
+
+        assertThatExceptionOfType(KeySourceException.class).isThrownBy(() -> keys(keys, ROTATED_KEY_ID));
+        assertThat(signingKeys(keys)).hasSize(1);
+    }
+
+    /** While the issuer answers, a key it does not publish signs no token of its own. */
+    @Test
+    void findsNoKeyTheIssuerDoesNotPublish() throws Exception {
+        var keys = IssuerKeys.keySet(KEY_SET, new Issuer(), CACHE.toMillis());
+
+        assertThat(keys(keys, ROTATED_KEY_ID)).isEmpty();
+    }
+
     private static List<JWK> signingKeys(JWKSource<SecurityContext> keys) throws KeySourceException {
-        return keys.get(new JWKSelector(new JWKMatcher.Builder().keyID(KEY_ID).build()), null);
+        return keys(keys, KEY_ID);
+    }
+
+    private static List<JWK> keys(JWKSource<SecurityContext> keys, String keyId) throws KeySourceException {
+        return keys.get(new JWKSelector(new JWKMatcher.Builder().keyID(keyId).build()), null);
     }
 
     // Time passing is the input: an expiry never comes early, so a wait past it is deterministic.
