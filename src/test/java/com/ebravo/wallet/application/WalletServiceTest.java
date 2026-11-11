@@ -582,6 +582,31 @@ class WalletServiceTest {
         assertThat(service.transactions(bob, new PageRequest(0, 20)).transactions()).containsExactly(his);
     }
 
+    /**
+     * Every read runs in a read transaction of its own, bounded by the read budget, and opens no
+     * posting transaction: a posting still counts as one, so the fake tells them apart.
+     */
+    @Test
+    void eachReadRunsInOneReadTransaction() {
+        var owner = anOwner();
+        service.open(owner);
+        var deposit = service.deposit(owner, money("10.50"), CORRELATION, aKey());
+        var postings = transactions.count;
+        List<Runnable> reads = List.of(
+                () -> service.get(owner),
+                () -> service.balanceAt(owner, NOW_IN_MICROS),
+                () -> service.transaction(owner, deposit.id()),
+                () -> service.transactions(owner, new PageRequest(0, 20)));
+
+        for (var read : reads) {
+            var before = transactions.reads;
+            read.run();
+            assertThat(transactions.reads - before).isEqualTo(1);
+        }
+
+        assertThat(transactions.count).isEqualTo(postings);
+    }
+
     @Test
     void reportsAListingWithoutWallet() {
         assertThatExceptionOfType(WalletNotFoundException.class)
@@ -764,10 +789,16 @@ class WalletServiceTest {
     private static final class CountingTransactions implements Transactions {
 
         private int count;
+        private int reads;
 
         @Override
         public <T> T inTransaction(Supplier<T> work) {
             count++;
+            return work.get();
+        }
+
+        public <T> T inReadTransaction(Supplier<T> work) {
+            reads++;
             return work.get();
         }
     }
