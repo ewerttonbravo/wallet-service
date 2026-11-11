@@ -3,6 +3,7 @@ package com.ebravo.wallet.adapter.web;
 import com.ebravo.wallet.application.PageRequest;
 import com.ebravo.wallet.domain.IdempotencyKey;
 import com.ebravo.wallet.domain.Money;
+import com.ebravo.wallet.domain.TransactionId;
 import com.ebravo.wallet.domain.WalletId;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -26,7 +27,7 @@ final class RequestFields {
     // Bounds the work done on untrusted input; the largest storable amount has 20 characters.
     private static final int MAX_AMOUNT_LENGTH = 32;
     private static final Pattern PLAIN_DECIMAL = Pattern.compile("-?\\d+(\\.\\d+)?");
-    // UUID.fromString also accepts shortened forms such as "1-1-1-1-1"; wallet ids are written in full.
+    // UUID.fromString also accepts shortened forms such as "1-1-1-1-1"; ids are written in full.
     private static final Pattern CANONICAL_UUID = Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}");
     // Ten digits hold every int; parsing decides whether the value fits.
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d{1,10}");
@@ -47,10 +48,19 @@ final class RequestFields {
     }
 
     static WalletId walletId(String field, String value) {
+        return new WalletId(canonicalUuid(value, field + " must be a wallet id such as \"0b6a9c7e-3f1d-4e2a-9c5b-7d8e1f2a3b4c\""));
+    }
+
+    /** Read as a string: Spring's own conversion would echo the rejected value in its error. */
+    static TransactionId transactionId(String value) {
+        return new TransactionId(canonicalUuid(value, "id must be a transaction id such as \"6f1c2e9a-0d5b-4c4e-9a43-5d8f0b1e2c3d\""));
+    }
+
+    private static UUID canonicalUuid(String value, String rule) {
         if (value == null || !CANONICAL_UUID.matcher(value).matches()) {
-            throw malformed(field + " must be a wallet id such as \"0b6a9c7e-3f1d-4e2a-9c5b-7d8e1f2a3b4c\"");
+            throw malformed(rule);
         }
-        return new WalletId(UUID.fromString(value));
+        return UUID.fromString(value);
     }
 
     /** Checked here rather than by Spring, so a missing header gets the same Problem Details as a malformed one. */

@@ -24,7 +24,7 @@ The service is built in increments, ordered from the most to the least value del
 | 16 | `sprint/16-issuer-outage` | `503` with `Retry-After` when the issuer's keys cannot be read | NFR4 partially, NFR7 |
 | 17 | `sprint/17-statement-timeout` | A time budget bounding a whole transaction | NFR2, NFR4 partially |
 | 18 | `sprint/18-graceful-shutdown` | Graceful shutdown that drains in-flight requests | NFR4 |
-| 19 | `sprint/19-delivery` | Final review of code and documentation: assumptions, trade-offs, time spent | Delivery |
+| 19 | `sprint/19-delivery` | The compromises earlier increments left to the final review, each in its own commits: reads bounded by a five-second budget and the driver by a socket timeout, keys kept through an issuer outage, the protected resource metadata stated truthfully, full transaction ids and one Problem Details shape; then the final review of code and documentation: assumptions, trade-offs, time spent | NFR4, NFR7, NFR9, Delivery |
 
 ## Sizing rule
 

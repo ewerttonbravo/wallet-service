@@ -8,7 +8,7 @@ Built with Java 25 and Spring Boot, following test-driven development and a clea
 
 ## Status
 
-Work in progress. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer, and serves its OpenAPI contract. It writes structured logs and metrics, answers `503` when its database or token issuer is unavailable, and drains the requests in flight when it stops. A final review of the code and documentation comes next, as the [roadmap](docs/roadmap.md) plans.
+Complete: every increment of the [roadmap](docs/roadmap.md) is built. Wallets, current and past balances, deposits, withdrawals, transfers and the transaction history work today. Every deposit, withdrawal and transfer carries an idempotency key: sent again with the same key it is posted only once, and the key cannot be reused for another request. The service runs in Docker Compose next to its database and a local token issuer, and serves its OpenAPI contract. It writes structured logs and metrics, bounds every request it serves, answers `503` when its database or token issuer is unavailable, and drains the requests in flight when it stops.
 
 ## Build and test
 
@@ -133,7 +133,7 @@ With the same environment, start the service with a debug agent and attach the I
 
 To debug a test, run it with `./mvnw -Dmaven.surefire.debug -Dtest=WalletServiceTest test`: it waits on port 5005 until the debugger attaches.
 
-A posting or wallet opening runs within a three-second budget the database keeps. A breakpoint held longer inside one lets PostgreSQL end the transaction, and the request answers `503`.
+A posting or wallet opening runs within a three-second budget the database keeps, a read within five. A breakpoint held longer inside one lets PostgreSQL end the transaction, and the request answers `503`.
 
 ### API contract
 
@@ -143,9 +143,15 @@ The service serves its OpenAPI 3.1 contract without a token. The same file is [`
 curl localhost:8080/openapi.yaml
 ```
 
+The RFC 9728 metadata every bearer challenge names is public too:
+
+```sh
+curl localhost:8080/.well-known/oauth-protected-resource
+```
+
 ### API collection
 
-[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first, then the errors, then the operations endpoints (the probes and the contract), each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
+[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com) collection that calls every endpoint in order, the happy path first, then the errors, then the operations endpoints (the probes, the contract and the resource metadata), each request checking the response. Open the folder in the Bruno app and pick the `local` environment, or run it from the command line (Node.js required) with the service up:
 
 ```sh
 cd bruno && npx -y @usebruno/cli@4.3.0 run --env local -r

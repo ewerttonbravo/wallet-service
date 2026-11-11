@@ -426,10 +426,13 @@ class WalletServiceTest {
         var recipient = service.open(anOwner());
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
         var before = transactions.count;
+        var reads = transactions.reads;
 
         service.transfer(alice, recipient.id(), money("10.50"), CORRELATION, aKey());
 
         assertThat(transactions.count - before).isEqualTo(1);
+        // The sender's wallet is found in that transaction too, within its budget.
+        assertThat(transactions.reads).isEqualTo(reads);
     }
 
     @Test
@@ -466,18 +469,19 @@ class WalletServiceTest {
         assertThat(ledger.size()).isEqualTo(depositsOnly);
     }
 
-    // A transfer to another wallet opens a transaction (eachTransferRunsInOneTransaction); this one
-    // can never succeed, so it must not wait for its wallet's lock either.
+    // A transfer to another wallet locks both wallets (locksBothWalletsInIdOrderWhicheverWayMoneyMoves);
+    // this one can never succeed, so it must not wait for its wallet's lock either.
     @Test
     void refusesATransferToTheOwnersOwnWalletBeforeTouchingIt() {
+        var locks = new RecordingLocks(wallets);
+        var recordingService = new WalletService(locks, ledger, keys, transactions, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
         var alice = anOwner();
         var wallet = service.open(alice);
         service.deposit(alice, money("25.00"), CORRELATION, aKey());
-        var before = transactions.count;
 
         assertThatExceptionOfType(SameWalletTransferException.class)
-                .isThrownBy(() -> service.transfer(alice, wallet.id(), money("10.50"), CORRELATION, aKey()));
-        assertThat(transactions.count).isEqualTo(before);
+                .isThrownBy(() -> recordingService.transfer(alice, wallet.id(), money("10.50"), CORRELATION, aKey()));
+        assertThat(locks.taken).isEmpty();
         assertThat(service.get(alice).balance()).isEqualTo(money("25.00"));
     }
 
@@ -580,6 +584,31 @@ class WalletServiceTest {
         var his = service.deposit(bob, money("1.00"), CORRELATION, aKey());
 
         assertThat(service.transactions(bob, new PageRequest(0, 20)).transactions()).containsExactly(his);
+    }
+
+    /**
+     * Every read runs in a read transaction of its own, bounded by the read budget, and opens no
+     * posting transaction: a posting still counts as one, so the fake tells them apart.
+     */
+    @Test
+    void eachReadRunsInOneReadTransaction() {
+        var owner = anOwner();
+        service.open(owner);
+        var deposit = service.deposit(owner, money("10.50"), CORRELATION, aKey());
+        var postings = transactions.count;
+        List<Runnable> reads = List.of(
+                () -> service.get(owner),
+                () -> service.balanceAt(owner, NOW_IN_MICROS),
+                () -> service.transaction(owner, deposit.id()),
+                () -> service.transactions(owner, new PageRequest(0, 20)));
+
+        for (var read : reads) {
+            var before = transactions.reads;
+            read.run();
+            assertThat(transactions.reads - before).isEqualTo(1);
+        }
+
+        assertThat(transactions.count).isEqualTo(postings);
     }
 
     @Test
@@ -705,6 +734,11 @@ class WalletServiceTest {
                 work.get();
                 throw new IllegalStateException("commit failed");
             }
+
+            @Override
+            public <T> T inReadTransaction(Supplier<T> work) {
+                return work.get();
+            }
         };
         var failing = new WalletService(wallets, ledger, keys, failingAtCommit, metrics, Clock.fixed(NOW_IN_NANOS, ZoneOffset.UTC));
 
@@ -764,10 +798,17 @@ class WalletServiceTest {
     private static final class CountingTransactions implements Transactions {
 
         private int count;
+        private int reads;
 
         @Override
         public <T> T inTransaction(Supplier<T> work) {
             count++;
+            return work.get();
+        }
+
+        @Override
+        public <T> T inReadTransaction(Supplier<T> work) {
+            reads++;
             return work.get();
         }
     }

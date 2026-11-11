@@ -21,10 +21,15 @@ headers {
 assert {
   res.status: eq 400
   res.body.detail: eq "X-Correlation-Id must be 1 to 64 letters, digits, '.', '_', ':' or '-'"
+  res.body.instance: eq /wallets/me
 }
 
 tests {
   test("does not echo the rejected value", function () {
     expect(res.getHeader("x-correlation-id")).to.be.undefined;
+  });
+
+  test("has the fields of every other error", function () {
+    expect(Object.keys(res.getBody()).sort()).to.eql(["detail", "instance", "status", "title"]);
   });
 }

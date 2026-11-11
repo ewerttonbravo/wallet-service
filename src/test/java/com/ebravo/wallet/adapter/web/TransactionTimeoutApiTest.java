@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
  * A use case waits on something the wallet lock's timeout does not bound, held here by another
- * transaction: it gives up at its three-second budget, rolls back, and the same request succeeds once
+ * transaction: it gives up at its budget (three seconds, five for a read), rolls back, and the same request succeeds once
  * the holder lets go. The time taken shows the budget ended the wait, not an earlier limit such as
  * the two-second lock wait; the detail tells it from a busy wallet and an unavailable database.
  */
@@ -38,6 +38,8 @@ class TransactionTimeoutApiTest {
 
     private static final String DETAIL = "The request took too long, retry the request";
     private static final Duration AT_LEAST = Duration.ofMillis(2500);
+    // Past a posting's three seconds: the read budget, not the posting's, ended the wait.
+    private static final Duration READ_AT_LEAST = Duration.ofMillis(4500);
 
     @Autowired
     private MockMvcTester mvc;
@@ -94,7 +96,35 @@ class TransactionTimeoutApiTest {
                 .bodyJson().extractingPath("$.balance").isEqualTo("10.00");
     }
 
+    /**
+     * A read waits for a table a migration holds, which no lock timeout bounds; it gives up at its
+     * own five-second budget, not a posting's three, and the same read answers once it is released.
+     */
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void answersServiceUnavailableWhenAReadWaitsPastItsBudget() throws SQLException {
+        var owner = anOwner();
+        assertThat(mvc.post().uri("/wallets").with(tokenOf(owner))).hasStatus(HttpStatus.CREATED);
+
+        try (var holder = dataSource.getConnection()) {
+            holder.setAutoCommit(false);
+            try (var statement = holder.createStatement()) {
+                statement.execute("lock table ledger_entry in access exclusive mode");
+            }
+
+            assertTookTooLong(() -> mvc.get().uri("/wallets/me/transactions").with(tokenOf(owner)).exchange(),
+                    READ_AT_LEAST);
+            holder.rollback();
+        }
+
+        assertThat(mvc.get().uri("/wallets/me/transactions").with(tokenOf(owner))).hasStatusOk();
+    }
+
     private static void assertTookTooLong(Supplier<MvcTestResult> request) {
+        assertTookTooLong(request, AT_LEAST);
+    }
+
+    private static void assertTookTooLong(Supplier<MvcTestResult> request, Duration atLeast) {
         var start = System.nanoTime();
         var response = request.get();
         var took = Duration.ofNanos(System.nanoTime() - start);
@@ -104,7 +134,7 @@ class TransactionTimeoutApiTest {
                 .hasHeader(HttpHeaders.RETRY_AFTER, "1")
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .bodyJson().extractingPath("$.detail").isEqualTo(DETAIL);
-        assertThat(took).isGreaterThanOrEqualTo(AT_LEAST);
+        assertThat(took).isGreaterThanOrEqualTo(atLeast);
     }
 
     private static void openWalletOf(OwnerId owner, Connection connection) throws SQLException {

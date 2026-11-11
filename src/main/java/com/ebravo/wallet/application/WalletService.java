@@ -58,7 +58,7 @@ public final class WalletService {
     }
 
     public Wallet get(OwnerId owner) {
-        return wallets.findByOwner(owner).orElseThrow(WalletNotFoundException::new);
+        return transactions.inReadTransaction(() -> find(owner));
     }
 
     /**
@@ -66,10 +66,12 @@ public final class WalletService {
      * microsecond, so the instant is read at the microsecond it falls in.
      */
     public Money balanceAt(OwnerId owner, Instant at) {
-        var wallet = get(owner);
         var instant = at.truncatedTo(ChronoUnit.MICROS);
-        wallet.requireBalanceKnownAt(instant, now());
-        return ledger.balanceAt(wallet.id(), instant).orElse(Money.ZERO);
+        return transactions.inReadTransaction(() -> {
+            var wallet = find(owner);
+            wallet.requireBalanceKnownAt(instant, now());
+            return ledger.balanceAt(wallet.id(), instant).orElse(Money.ZERO);
+        });
     }
 
     /** A retry with the key of a deposit already posted gets that deposit back, and posts nothing. */
@@ -94,12 +96,12 @@ public final class WalletService {
     public WalletTransaction transfer(
             OwnerId owner, WalletId recipient, Money amount, CorrelationId correlationId, IdempotencyKey key) {
         amount.requirePositive();
-        // A wallet's id never changes, so it is read before the transaction, where no lock is held yet.
-        var source = get(owner).id();
-        if (source.equals(recipient)) {
-            throw new SameWalletTransferException();
-        }
         return counted(transactions.inTransaction(() -> {
+            // A wallet's id never changes, so it is read before any lock is taken.
+            var source = find(owner).id();
+            if (source.equals(recipient)) {
+                throw new SameWalletTransferException();
+            }
             // Every transfer locks its wallets in id order: two opposing transfers queue for the first
             // lock instead of each holding the one the other waits for.
             var locked = new HashMap<WalletId, Wallet>();
@@ -116,11 +118,16 @@ public final class WalletService {
 
     /** Only the owner's own transactions are found: anyone else's is reported as missing. */
     public WalletTransaction transaction(OwnerId owner, TransactionId id) {
-        return ledger.find(get(owner).id(), id).orElseThrow(TransactionNotFoundException::new);
+        return transactions.inReadTransaction(
+                () -> ledger.find(find(owner).id(), id).orElseThrow(TransactionNotFoundException::new));
     }
 
     public TransactionPage transactions(OwnerId owner, PageRequest page) {
-        return ledger.history(get(owner).id(), page);
+        return transactions.inReadTransaction(() -> ledger.history(find(owner).id(), page));
+    }
+
+    private Wallet find(OwnerId owner) {
+        return wallets.findByOwner(owner).orElseThrow(WalletNotFoundException::new);
     }
 
     private WalletTransaction post(

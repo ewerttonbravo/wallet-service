@@ -337,11 +337,15 @@ class TransactionApiTest {
                 HttpStatus.NOT_FOUND, "The user has no such transaction");
     }
 
-    @Test
-    void refusesATransactionIdThatIsNotAUuid() {
-        assertThat(mvc.get().uri("/wallets/me/transactions/42").with(tokenOf(aWalletOwner())))
-                .hasStatus(HttpStatus.BAD_REQUEST)
-                .hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+    /**
+     * Only a full UUID names a transaction, as the contract says; Java also reads "1-1-1-1-1" as one.
+     * A full UUID that names nothing is a 404 (above), so the 400 is the format alone.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"42", "1-1-1-1-1", "6f1c2e9a-0d5b-4c4e-9a43-5d8f0b1e2c3"})
+    void refusesATransactionIdThatIsNotAFullUuid(String id) {
+        assertProblem(mvc.get().uri("/wallets/me/transactions/" + id).with(tokenOf(aWalletOwner())).exchange(),
+                HttpStatus.BAD_REQUEST, "id must be a transaction id such as \"6f1c2e9a-0d5b-4c4e-9a43-5d8f0b1e2c3d\"");
     }
 
     @ParameterizedTest

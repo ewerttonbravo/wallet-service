@@ -86,7 +86,9 @@ class DatabaseOutageTest {
 
     /**
      * Answered, the failure no longer reaches the access line, so searching by id must still find
-     * why: the lost connection, whether the pool timed out getting one or handed out one already dead.
+     * why: the driver's own failure, whether the pool timed out getting a connection or handed out
+     * one already dead. Only the first path passes through Hibernate: a dead connection fails at the
+     * budget's statement, which Spring's JDBC support sends and translates.
      */
     @Test
     void logsTheFailureWithTheCorrelationId(CapturedOutput output) {
@@ -96,7 +98,7 @@ class DatabaseOutageTest {
         assertThat(correlationId).isNotNull();
         assertThat(output.getOut().lines().filter(line -> line.contains(correlationId)))
                 .anyMatch(line -> line.contains("\"level\":\"ERROR\"")
-                        && line.contains("Caused by: org.hibernate.exception.JDBCConnectionException"));
+                        && line.contains("Caused by: org.postgresql.util.PSQLException"));
     }
 
     static Stream<Named<Function<MockMvcTester, MockMvcRequestBuilder>>> callsThatNeedTheDatabase() {

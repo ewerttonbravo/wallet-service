@@ -39,6 +39,9 @@ import org.springframework.transaction.TransactionTimedOutException;
 class SpringTransactionsTest {
 
     private static final int BUDGET_SECONDS = 1;
+    private static final int READ_BUDGET_SECONDS = 3;
+    // PostgreSQL's code for a write sent in a read-only transaction.
+    private static final String READ_ONLY_TRANSACTION = "25006";
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -141,6 +144,53 @@ class SpringTransactionsTest {
         }));
     }
 
+    /**
+     * A read runs within a budget of its own, longer than a posting's: the same wait that ends a
+     * posting completes as a read. The wait is the server's own clock, from the budget's start.
+     */
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void letsAReadOutlastThePostingBudget() {
+        var transactions = new SpringTransactions(transactionManager, jdbc,
+                Duration.ofSeconds(BUDGET_SECONDS), Duration.ofSeconds(READ_BUDGET_SECONDS));
+        Supplier<Object> longerThanAPosting = () -> jdbc.sql("select pg_sleep(1.5)").query().singleValue();
+
+        assertThatNoException().isThrownBy(() -> transactions.inReadTransaction(longerThanAPosting));
+        assertThatExceptionOfType(TransactionTimedOutException.class)
+                .isThrownBy(() -> transactions.inTransaction(longerThanAPosting));
+    }
+
+    /** The database ends a read past its budget as it ends a posting, and it fails the same way. */
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void endsAReadPastItsBudget() {
+        var transactions = new SpringTransactions(transactionManager, jdbc,
+                Duration.ofSeconds(READ_BUDGET_SECONDS), Duration.ofSeconds(BUDGET_SECONDS));
+
+        assertThatExceptionOfType(TransactionTimedOutException.class).isThrownBy(() -> transactions.inReadTransaction(() -> {
+            waitUntilTheDatabaseEndsTheTransaction();
+            return jdbc.sql("select 1").query(Integer.class).single();
+        }));
+    }
+
+    /** A read writes nothing: the database refuses a write in it, which a posting makes (openedWallet). */
+    @Test
+    void refusesAWriteInAReadTransaction() {
+        assertThatExceptionOfType(RuntimeException.class)
+                .isThrownBy(() -> budgeted().inReadTransaction(() -> wallets.add(Wallet.open(anOwner(), NOW))))
+                .satisfies(failure -> assertThat(sqlStateOf(failure)).isEqualTo(READ_ONLY_TRANSACTION));
+        assertThat(budgeted().inTransaction(() -> wallets.add(Wallet.open(anOwner(), NOW)))).isTrue();
+    }
+
+    private static String sqlStateOf(Throwable failure) {
+        for (var cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql) {
+                return sql.getSQLState();
+            }
+        }
+        return null;
+    }
+
     /** Each prepares, within the budget, what its statement needs, and returns the statement. */
     Stream<Arguments> statements() {
         return Stream.of(
@@ -163,7 +213,7 @@ class SpringTransactionsTest {
     }
 
     private SpringTransactions budgeted() {
-        return new SpringTransactions(transactionManager, jdbc, Duration.ofSeconds(BUDGET_SECONDS));
+        return new SpringTransactions(transactionManager, jdbc, Duration.ofSeconds(BUDGET_SECONDS), SpringTransactions.READ_BUDGET);
     }
 
     /**
